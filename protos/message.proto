@@ -533,6 +533,14 @@ message CliprdrFileContentsResponse {
   bytes requested_data = 5;
 }
 
+// Try empty clipboard in the following case(Windows only):
+// 1. `A`(Windows) -> `B`, `C`
+// 2. Copy in `A, file clipboards on `B` and `C` are updated.
+// 3. Copy in `B`.
+// `A` should tell `C` to empty the file clipboard.
+message CliprdrTryEmpty {
+}
+
 message Cliprdr {
   oneof union {
     CliprdrMonitorReady ready = 1;
@@ -542,6 +550,7 @@ message Cliprdr {
     CliprdrServerFormatDataResponse format_data_response = 5;
     CliprdrFileContentsRequest file_contents_request = 6;
     CliprdrFileContentsResponse file_contents_response = 7;
+    CliprdrTryEmpty try_empty = 8;
   }
 }
 
