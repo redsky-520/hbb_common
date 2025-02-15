@@ -606,6 +606,7 @@ message PermissionInfo {
     Restart = 5;
     Recording = 6;
     BlockInput = 7;
+    Camera = 8;
   }
 
   Permission permission = 1;
@@ -663,6 +664,7 @@ message OptionMessage {
   // starting from 15 please, do not use removed fields
   BoolOption follow_remote_cursor = 15;
   BoolOption follow_remote_window = 16;
+  BoolOption disable_camera = 17;
 }
 
 message TestDelay {
