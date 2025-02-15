@@ -240,7 +240,7 @@ where
 }
 
 pub fn is_valid_custom_id(id: &str) -> bool {
-    regex::Regex::new(r"^[a-zA-Z]\w{5,15}$")
+    regex::Regex::new(r"^[a-zA-Z][\w-]{5,15}$")
         .unwrap()
         .is_match(id)
 }
