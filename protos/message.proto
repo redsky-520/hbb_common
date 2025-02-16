@@ -62,6 +62,8 @@ message FileTransfer {
   bool show_hidden = 2;
 }
 
+message ViewCamera {}
+
 message OSLogin {
   string username = 1;
   string password = 2;
@@ -76,6 +78,7 @@ message LoginRequest {
   oneof union {
     FileTransfer file_transfer = 7;
     PortForward port_forward = 8;
+    ViewCamera view_camera = 15;
   }
   bool video_ack_required = 9;
   uint64 session_id = 10;
