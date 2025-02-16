@@ -2212,6 +2212,7 @@ pub mod keys {
     pub const OPTION_ENABLE_KEYBOARD: &str = "enable-keyboard";
     pub const OPTION_ENABLE_CLIPBOARD: &str = "enable-clipboard";
     pub const OPTION_ENABLE_FILE_TRANSFER: &str = "enable-file-transfer";
+    pub const OPTION_ENABLE_CAMERA: &str = "enable-camera";
     pub const OPTION_ENABLE_AUDIO: &str = "enable-audio";
     pub const OPTION_ENABLE_TUNNEL: &str = "enable-tunnel";
     pub const OPTION_ENABLE_REMOTE_RESTART: &str = "enable-remote-restart";
@@ -2362,6 +2363,7 @@ pub mod keys {
         OPTION_ENABLE_KEYBOARD,
         OPTION_ENABLE_CLIPBOARD,
         OPTION_ENABLE_FILE_TRANSFER,
+        OPTION_ENABLE_CAMERA,
         OPTION_ENABLE_AUDIO,
         OPTION_ENABLE_TUNNEL,
         OPTION_ENABLE_REMOTE_RESTART,
