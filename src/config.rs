@@ -53,6 +53,7 @@ lazy_static::lazy_static! {
     static ref CONFIG: RwLock<Config> = RwLock::new(Config::load());
     static ref CONFIG2: RwLock<Config2> = RwLock::new(Config2::load());
     static ref LOCAL_CONFIG: RwLock<LocalConfig> = RwLock::new(LocalConfig::load());
+    static ref STATUS: RwLock<Status> = RwLock::new(Status::load());
     static ref TRUSTED_DEVICES: RwLock<(Vec<TrustedDevice>, bool)> = Default::default();
     static ref ONLINE: Mutex<HashMap<String, i64>> = Default::default();
     pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = RwLock::new("".to_owned());
@@ -2427,6 +2428,42 @@ pub fn common_load<
 
 pub fn common_store<T: serde::Serialize>(config: &T, suffix: &str) {
     Config::store_(config, suffix);
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct Status {
+    #[serde(default, deserialize_with = "deserialize_hashmap_string_string")]
+    values: HashMap<String, String>,
+}
+
+impl Status {
+    fn load() -> Status {
+        Config::load_::<Status>("_status")
+    }
+
+    fn store(&self) {
+        Config::store_(self, "_status");
+    }
+
+    pub fn get(k: &str) -> String {
+        STATUS
+            .read()
+            .unwrap()
+            .values
+            .get(k)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn set(k: &str, v: String) {
+        if Self::get(k) == v {
+            return;
+        }
+
+        let mut st = STATUS.write().unwrap();
+        st.values.insert(k.to_owned(), v);
+        st.store();
+    }
 }
 
 #[cfg(test)]
