@@ -62,6 +62,8 @@ message FileTransfer {
   bool show_hidden = 2;
 }
 
+message ViewCamera {}
+
 message OSLogin {
   string username = 1;
   string password = 2;
@@ -76,6 +78,7 @@ message LoginRequest {
   oneof union {
     FileTransfer file_transfer = 7;
     PortForward port_forward = 8;
+    ViewCamera view_camera = 9;
   }
   bool video_ack_required = 9;
   uint64 session_id = 10;
@@ -603,6 +606,7 @@ message PermissionInfo {
     Restart = 5;
     Recording = 6;
     BlockInput = 7;
+    Camera = 8;
   }
 
   Permission permission = 1;
@@ -660,6 +664,7 @@ message OptionMessage {
   // starting from 15 please, do not use removed fields
   BoolOption follow_remote_cursor = 15;
   BoolOption follow_remote_window = 16;
+  BoolOption disable_camera = 17;
 }
 
 message TestDelay {
