@@ -1273,14 +1273,11 @@ impl PeerConfig {
         Config::with_extension(Config::path(path))
     }
 
-    #[inline]
     // The number of peers to load in the first round when showing the peers card list in the main window.
     // When there're too many peers, loading all of them at once will take a long time.
     // We can load them in two rouds, the first round loads the first 100 peers, and the second round loads the rest.
     // Then the UI will show the first 100 peers first, and the rest will be loaded and shown later.
-    pub fn get_loading_batch_count() -> usize {
-        100
-    }
+    pub const BATCH_LOADING_COUNT: usize = 100;
 
     pub fn get_vec_id_modified_time_path(
         id_filters: &Option<Vec<String>>,
@@ -1344,12 +1341,11 @@ impl PeerConfig {
     async fn preload_peers_async() {
         let now = std::time::Instant::now();
         let vec_id_modified_time_path = Self::get_vec_id_modified_time_path(&None);
-        let batch_count = 300;
         let total_count = vec_id_modified_time_path.len();
         let mut futs = vec![];
         for (_, _, path) in vec_id_modified_time_path.into_iter() {
             futs.push(Self::preload_file_async(path));
-            if futs.len() >= batch_count {
+            if futs.len() >= Self::BATCH_LOADING_COUNT {
                 futures::future::join_all(futs).await;
                 futs = vec![];
             }
@@ -1360,7 +1356,7 @@ impl PeerConfig {
         log::info!(
             "Preload peers done in {:?}, batch_count: {}, total: {}",
             now.elapsed(),
-            batch_count,
+            Self::BATCH_LOADING_COUNT,
             total_count
         );
     }
@@ -1397,11 +1393,13 @@ impl PeerConfig {
 
         let to = match to {
             Some(to) => to.min(all.len()),
-            None => {
-                let batch_count = Self::get_loading_batch_count();
-                (from + batch_count).min(all.len())
-            }
+            None => (from + Self::BATCH_LOADING_COUNT).min(all.len()),
         };
+        
+        // to <= from is unexpected, but we can just return an empty vec in this case.
+        if to <= from {
+            return (vec![], from);
+        }
 
         let peers: Vec<_> = all[from..to]
             .iter()

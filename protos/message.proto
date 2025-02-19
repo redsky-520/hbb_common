@@ -78,7 +78,7 @@ message LoginRequest {
   oneof union {
     FileTransfer file_transfer = 7;
     PortForward port_forward = 8;
-    ViewCamera view_camera = 9;
+    ViewCamera view_camera = 15;
   }
   bool video_ack_required = 9;
   uint64 session_id = 10;
