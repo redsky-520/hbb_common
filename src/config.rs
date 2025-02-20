@@ -1346,7 +1346,12 @@ impl PeerConfig {
         for (_, _, path) in vec_id_modified_time_path.into_iter() {
             futs.push(Self::preload_file_async(path));
             if futs.len() >= Self::BATCH_LOADING_COUNT {
+                let first_load_start = std::time::Instant::now();
                 futures::future::join_all(futs).await;
+                if first_load_start.elapsed().as_millis() < 10 {
+                    // No need to preload the rest if the first load is fast.
+                    return;
+                }
                 futs = vec![];
             }
         }
@@ -1395,7 +1400,7 @@ impl PeerConfig {
             Some(to) => to.min(all.len()),
             None => (from + Self::BATCH_LOADING_COUNT).min(all.len()),
         };
-        
+
         // to <= from is unexpected, but we can just return an empty vec in this case.
         if to <= from {
             return (vec![], from);
