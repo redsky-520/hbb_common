@@ -68,10 +68,11 @@ pub(crate) fn new_socket(addr: std::net::SocketAddr, reuse: bool) -> Result<TcpS
         std::net::SocketAddr::V6(..) => TcpSocket::new_v6()?,
     };
     if reuse {
-        // windows has no reuse_port, but it's reuse_address
+        // windows has no reuse_port, but its reuse_address
         // almost equals to unix's reuse_port + reuse_address,
         // though may introduce nondeterministic behavior
-        #[cfg(unix)]
+        // illumos has no support for SO_REUSEPORT
+        #[cfg(all(unix, not(target_os = "illumos")))]
         socket.set_reuseport(true).ok();
         socket.set_reuseaddr(true).ok();
     }
@@ -226,6 +227,8 @@ pub async fn listen_any(port: u16) -> ResultType<TcpListener> {
     if let Ok(mut socket) = TcpSocket::new_v6() {
         #[cfg(unix)]
         {
+            // illumos has no support for SO_REUSEPORT
+            #[cfg(not(target_os = "illumos"))]
             socket.set_reuseport(true).ok();
             socket.set_reuseaddr(true).ok();
             use std::os::unix::io::{FromRawFd, IntoRawFd};
