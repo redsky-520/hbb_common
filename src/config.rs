@@ -2365,6 +2365,7 @@ pub mod keys {
     pub const OPTION_ONE_WAY_CLIPBOARD_REDIRECTION: &str = "one-way-clipboard-redirection";
     pub const OPTION_ALLOW_LOGON_SCREEN_PASSWORD: &str = "allow-logon-screen-password";
     pub const OPTION_ONE_WAY_FILE_TRANSFER: &str = "one-way-file-transfer";
+    pub const OPTION_ALLOW_HTTPS_21114: &str = "allow-https-21114";
 
     // flutter local options
     pub const OPTION_FLUTTER_REMOTE_MENUBAR_STATE: &str = "remoteMenubarState";
@@ -2517,6 +2518,7 @@ pub mod keys {
         OPTION_ONE_WAY_CLIPBOARD_REDIRECTION,
         OPTION_ALLOW_LOGON_SCREEN_PASSWORD,
         OPTION_ONE_WAY_FILE_TRANSFER,
+        OPTION_ALLOW_HTTPS_21114,
     ];
 }
 
