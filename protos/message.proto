@@ -69,6 +69,10 @@ message OSLogin {
   string password = 2;
 }
 
+message ClientFeature {
+  bool printer = 1;
+}
+
 message LoginRequest {
   string username = 1;
   bytes password = 2;
@@ -86,6 +90,7 @@ message LoginRequest {
   OSLogin os_login = 12;
   string my_platform = 13;
   bytes hwid = 14;
+  string platform_additions = 16;
 }
 
 message Auth2FA {
@@ -843,6 +848,40 @@ message VoiceCallResponse {
   int64 ack_timestamp = 3;
 }
 
+message PrinterRequest {
+  int32 id = 1;
+}
+
+message PrinterResponse {
+  int32 id = 1;
+  bool accepted = 2;
+}
+
+message PrinterBlock {
+  int32 id = 1;
+  bytes data = 2;
+  bool compressed = 3;
+}
+
+message PrinterDone {
+  int32 id = 1;
+}
+
+message PrinterError {
+  int32 id = 1;
+  string error = 2;
+}
+
+message Printer {
+  oneof union {
+    PrinterRequest printer_request = 1;
+    PrinterResponse printer_response = 2;
+    PrinterBlock printer_block = 3;
+    PrinterDone printer_done = 4;
+    PrinterError printer_error = 5;
+  }
+}
+
 message Message {
   oneof union {
     SignedId signed_id = 3;
@@ -871,5 +910,6 @@ message Message {
     PointerDeviceEvent pointer_device_event = 26;
     Auth2FA auth_2fa = 27;
     MultiClipboards multi_clipboards = 28;
+    Printer printer = 29;
   }
 }

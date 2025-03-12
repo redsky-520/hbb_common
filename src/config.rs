@@ -2378,6 +2378,10 @@ pub mod keys {
     pub const OPTION_FLUTTER_CURRENT_AB_NAME: &str = "current-ab-name";
     pub const OPTION_ALLOW_REMOTE_CM_MODIFICATION: &str = "allow-remote-cm-modification";
 
+    pub const OPTION_PRINTER_INCOMING_JOB_ACTION: &str = "printer-incomming-job-action";
+    pub const OPTION_PRINTER_ALLOW_AUTO_PRINT: &str = "allow-printer-auto-print";
+    pub const OPTION_PRINTER_SELECTED_NAME: &str = "printer-selected-name";
+
     // android floating window options
     pub const OPTION_DISABLE_FLOATING_WINDOW: &str = "disable-floating-window";
     pub const OPTION_FLOATING_WINDOW_SIZE: &str = "floating-window-size";
