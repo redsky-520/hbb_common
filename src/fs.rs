@@ -1,7 +1,10 @@
 #[cfg(windows)]
 use std::os::windows::prelude::*;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicI32, Ordering},
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use serde_derive::{Deserialize, Serialize};
 use serde_json::json;
@@ -13,6 +16,16 @@ use crate::{
     compress::{compress, decompress},
     config::Config,
 };
+
+static NEXT_JOB_ID: AtomicI32 = AtomicI32::new(1);
+
+pub fn get_next_job_id() -> i32 {
+    NEXT_JOB_ID.fetch_add(1, Ordering::SeqCst)
+}
+
+pub fn update_next_job_id(id: i32) {
+    NEXT_JOB_ID.store(id, Ordering::SeqCst);
+}
 
 pub fn read_dir(path: &Path, include_hidden: bool) -> ResultType<FileDirectory> {
     let mut dir = FileDirectory {
@@ -240,10 +253,59 @@ pub fn can_enable_overwrite_detection(version: i64) -> bool {
     version >= get_version_number("1.1.10")
 }
 
+#[repr(i32)]
+#[derive(Copy, Clone, Serialize, Debug, PartialEq)]
+pub enum JobType {
+    Generic = 0,
+    Printer = 1,
+}
+
+impl Default for JobType {
+    fn default() -> Self {
+        JobType::Generic
+    }
+}
+
+impl From<JobType> for file_transfer_send_request::FileType {
+    fn from(t: JobType) -> Self {
+        match t {
+            JobType::Generic => file_transfer_send_request::FileType::Generic,
+            JobType::Printer => file_transfer_send_request::FileType::Printer,
+        }
+    }
+}
+
+impl From<i32> for JobType {
+    fn from(value: i32) -> Self {
+        match value {
+            0 => JobType::Generic,
+            1 => JobType::Printer,
+            _ => JobType::Generic,
+        }
+    }
+}
+
+impl Into<i32> for JobType {
+    fn into(self) -> i32 {
+        self as i32
+    }
+}
+
+impl JobType {
+    pub fn from_proto(t: ::protobuf::EnumOrUnknown<file_transfer_send_request::FileType>) -> Self {
+        match t.enum_value() {
+            Ok(file_transfer_send_request::FileType::Generic) => JobType::Generic,
+            Ok(file_transfer_send_request::FileType::Printer) => JobType::Printer,
+            _ => JobType::Generic,
+        }
+    }
+}
+
 #[derive(Default, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferJob {
     pub id: i32,
+    pub r#type: JobType,
     pub remote: String,
     pub path: PathBuf,
     pub show_hidden: bool,
@@ -312,6 +374,7 @@ impl TransferJob {
     #[allow(clippy::too_many_arguments)]
     pub fn new_write(
         id: i32,
+        r#type: JobType,
         remote: String,
         path: String,
         file_num: i32,
@@ -324,6 +387,7 @@ impl TransferJob {
         let total_size = files.iter().map(|x| x.size).sum();
         Self {
             id,
+            r#type,
             remote,
             path: get_path(&path),
             file_num,
@@ -338,6 +402,7 @@ impl TransferJob {
 
     pub fn new_read(
         id: i32,
+        r#type: JobType,
         remote: String,
         path: String,
         file_num: i32,
@@ -350,6 +415,7 @@ impl TransferJob {
         let total_size = files.iter().map(|x| x.size).sum();
         Ok(Self {
             id,
+            r#type,
             remote,
             path: get_path(&path),
             file_num,
@@ -398,6 +464,9 @@ impl TransferJob {
     }
 
     pub fn modify_time(&self) {
+        if self.r#type == JobType::Printer {
+            return;
+        }
         let file_num = self.file_num as usize;
         if file_num < self.files.len() {
             let entry = &self.files[file_num];
@@ -413,6 +482,9 @@ impl TransferJob {
     }
 
     pub fn remove_download_file(&self) {
+        if self.r#type == JobType::Printer {
+            return;
+        }
         let file_num = self.file_num as usize;
         if file_num < self.files.len() {
             let entry = &self.files[file_num];
@@ -437,11 +509,15 @@ impl TransferJob {
             }
             self.file_num = block.file_num;
             let entry = &self.files[file_num];
-            let path = self.join(&entry.name);
-            if let Some(p) = path.parent() {
-                std::fs::create_dir_all(p).ok();
-            }
-            let path = format!("{}.download", get_string(&path));
+            let path = if self.r#type == JobType::Printer {
+                self.path.to_string_lossy().to_string()
+            } else {
+                let path = self.join(&entry.name);
+                if let Some(p) = path.parent() {
+                    std::fs::create_dir_all(p).ok();
+                }
+                format!("{}.download", get_string(&path))
+            };
             self.file = Some(File::create(&path).await?);
         }
         if block.compressed {
@@ -495,12 +571,14 @@ impl TransferJob {
                 }
             }
         }
-        if self.enable_overwrite_detection && !self.file_confirmed() {
-            if !self.file_is_waiting() {
-                self.send_current_digest(stream).await?;
-                self.set_file_is_waiting(true);
+        if self.r#type == JobType::Generic {
+            if self.enable_overwrite_detection && !self.file_confirmed() {
+                if !self.file_is_waiting() {
+                    self.send_current_digest(stream).await?;
+                    self.set_file_is_waiting(true);
+                }
+                return Ok(None);
             }
-            return Ok(None);
         }
         const BUF_SIZE: usize = 128 * 1024;
         let mut buf: Vec<u8> = vec![0; BUF_SIZE];
@@ -760,14 +838,22 @@ pub fn new_receive(
 }
 
 #[inline]
-pub fn new_send(id: i32, path: String, file_num: i32, include_hidden: bool) -> Message {
+pub fn new_send(
+    id: i32,
+    r#type: JobType,
+    path: String,
+    file_num: i32,
+    include_hidden: bool,
+) -> Message {
     log::info!("new send: {}, id: {}", path, id);
     let mut action = FileAction::new();
+    let t: file_transfer_send_request::FileType = r#type.into();
     action.set_send(FileTransferSendRequest {
         id,
         path,
         include_hidden,
         file_num,
+        file_type: t.into(),
         ..Default::default()
     });
     let mut msg_out = Message::new();

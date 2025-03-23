@@ -86,6 +86,7 @@ message LoginRequest {
   OSLogin os_login = 12;
   string my_platform = 13;
   bytes hwid = 14;
+  string platform_additions = 16;
 }
 
 message Auth2FA {
@@ -452,6 +453,12 @@ message FileTransferSendRequest {
   string path = 2;
   bool include_hidden = 3;
   int32 file_num = 4;
+
+  enum FileType {
+    Generic = 0;
+    Printer = 1;
+  }
+  FileType file_type = 5;
 }
 
 message FileTransferSendConfirmRequest {
