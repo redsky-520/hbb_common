@@ -513,10 +513,13 @@ impl TransferJob {
         })
     }
 
-    pub fn get_buf_data(self) -> Option<Vec<u8>> {
+    pub async fn get_buf_data(self) -> ResultType<Option<Vec<u8>>> {
         match self.data_stream {
-            Some(DataStream::BufStream(bs)) => Some(bs.into_inner().into_inner()),
-            _ => None,
+            Some(DataStream::BufStream(mut bs)) => {
+                bs.flush().await?;
+                Ok(Some(bs.into_inner().into_inner()))
+            }
+            _ => Ok(None),
         }
     }
 
