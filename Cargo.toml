@@ -40,7 +40,8 @@ toml = "0.7"
 uuid = { version = "1.16", features = ["v4"] }
 # new sysinfo issue: https://github.com/rustdesk/rustdesk/pull/6330#issuecomment-2270871442
 sysinfo = { git = "https://github.com/rustdesk-org/sysinfo", branch = "rlim_max" }
-thiserror = "2.0"
+# new flexi_logger failed on nightly rustc 1.75 for x86
+thiserror = "1.0"
 httparse = "1.10"
 base64 = "0.22"
 url = "2.5"
