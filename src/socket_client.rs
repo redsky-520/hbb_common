@@ -2,7 +2,7 @@ use crate::{
     config::{Config, NetworkType},
     tcp::FramedStream,
     udp::FramedSocket,
-    websocket, ResultType,
+    websocket, ResultType, Stream,
 };
 use anyhow::Context;
 use std::net::SocketAddr;
@@ -113,11 +113,11 @@ pub async fn connect_tcp_local<
     target: T,
     local: Option<SocketAddr>,
     ms_timeout: u64,
-) -> ResultType<crate::Stream> {
+) -> ResultType<Stream> {
     #[cfg(feature = "websocket")]
     {
         let url = format!("ws://{}", target);
-        websocket::WsFramedStream::new(url, local, None, ms_timeout).await
+        Ok(Stream::WebSocket(websocket::WsFramedStream::new(url, local, None, ms_timeout).await?))
     }
     #[cfg(not(feature = "websocket"))]
     {
