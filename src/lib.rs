@@ -57,8 +57,16 @@ pub use toml;
 pub use uuid;
 pub mod fingerprint;
 pub use flexi_logger;
+pub mod websocket;
 
+
+#[cfg(feature = "websocket")]
+pub type Stream = websocket::WsFramedStream;
+
+
+#[cfg(not(feature = "websocket"))]
 pub type Stream = tcp::FramedStream;
+
 pub type SessionID = uuid::Uuid;
 
 #[inline]
