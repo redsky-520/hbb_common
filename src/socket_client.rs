@@ -2,7 +2,7 @@ use crate::{
     config::{Config, NetworkType},
     tcp::FramedStream,
     udp::FramedSocket,
-    ResultType,
+    websocket, ResultType,
 };
 use anyhow::Context;
 use std::net::SocketAddr;
@@ -102,7 +102,7 @@ pub async fn connect_tcp<
 >(
     target: T,
     ms_timeout: u64,
-) -> ResultType<FramedStream> {
+) -> ResultType<crate::Stream> {
     connect_tcp_local(target, None, ms_timeout).await
 }
 
@@ -113,19 +113,27 @@ pub async fn connect_tcp_local<
     target: T,
     local: Option<SocketAddr>,
     ms_timeout: u64,
-) -> ResultType<FramedStream> {
-    if let Some(conf) = Config::get_socks() {
-        return FramedStream::connect(target, local, &conf, ms_timeout).await;
+) -> ResultType<crate::Stream> {
+    #[cfg(feature = "websocket")]
+    {
+        let url = format!("ws://{}", target);
+        websocket::WsFramedStream::new(url, local, None, ms_timeout).await
     }
-    if let Some(target) = target.resolve() {
-        if let Some(local) = local {
-            if local.is_ipv6() && target.is_ipv4() {
-                let target = query_nip_io(target).await?;
-                return FramedStream::new(target, Some(local), ms_timeout).await;
+    #[cfg(not(feature = "websocket"))]
+    {
+        if let Some(conf) = Config::get_socks() {
+            return tcp::FramedStream::connect(target, local, &conf, ms_timeout).await;
+        }
+        if let Some(target) = target.resolve() {
+            if let Some(local) = local {
+                if local.is_ipv6() && target.is_ipv4() {
+                    let target = query_nip_io(target).await?;
+                    return tcp::FramedStream::new(target, Some(local), ms_timeout).await;
+                }
             }
         }
+        tcp::FramedStream::new(target, local, ms_timeout).await
     }
-    FramedStream::new(target, local, ms_timeout).await
 }
 
 #[inline]
