@@ -175,7 +175,7 @@ fn _get_values_of_seat0(indices: &[usize], ignore_gdm_wayland: bool) -> Vec<Stri
                             continue;
                         }
                     }
-                    if d == "tty" {
+                    if d == "tty" || d == "unspecified" {
                         continue;
                     }
                     return line_values(indices, line);
