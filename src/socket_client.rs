@@ -114,25 +114,41 @@ pub async fn connect_tcp_local<
     local: Option<SocketAddr>,
     ms_timeout: u64,
 ) -> ResultType<Stream> {
-    #[cfg(feature = "websocket")]
-    {
-        let url = format!("ws://{}", target);
-        Ok(Stream::WebSocket(websocket::WsFramedStream::new(url, local, None, ms_timeout).await?))
-    }
-    #[cfg(not(feature = "websocket"))]
-    {
+    let target_str = target.to_string();
+
+    // 根据目标地址协议决定连接方式
+    if target_str.starts_with("ws://") || target_str.starts_with("wss://") {
+        // WebSocket 连接逻辑
+        Ok(Stream::WebSocket(websocket::WsFramedStream::new(
+            target_str,
+            local,
+            None,
+            ms_timeout,
+        )
+        .await?))
+    } else {
+        // TCP 连接逻辑
         if let Some(conf) = Config::get_socks() {
-            return tcp::FramedStream::connect(target, local, &conf, ms_timeout).await;
+            return Ok(Stream::Tcp(
+                FramedStream::connect(target, local, &conf, ms_timeout).await?,
+            ));
         }
-        if let Some(target) = target.resolve() {
-            if let Some(local) = local {
-                if local.is_ipv6() && target.is_ipv4() {
-                    let target = query_nip_io(target).await?;
-                    return tcp::FramedStream::new(target, Some(local), ms_timeout).await;
+
+        if let Some(target_addr) = target.resolve() {
+            if let Some(local_addr) = local {
+                if local_addr.is_ipv6() && target_addr.is_ipv4() {
+                    let resolved_target = query_nip_io(target_addr).await?;
+                    return Ok(Stream::Tcp(
+                        FramedStream::new(resolved_target, Some(local_addr), ms_timeout)
+                            .await?,
+                    ));
                 }
             }
         }
-        tcp::FramedStream::new(target, local, ms_timeout).await
+
+        Ok(Stream::Tcp(
+            FramedStream::new(target, local, ms_timeout).await?,
+        ))
     }
 }
 
