@@ -104,7 +104,7 @@ pub fn get_display_server_of_session(session: &str) -> String {
     } else {
         "".to_owned()
     };
-    if display_server.is_empty() || display_server == "tty" {
+    if display_server.is_empty() || display_server == "tty" || display_server == "unspecified" {
         if let Ok(sestype) = std::env::var("XDG_SESSION_TYPE") {
             if !sestype.is_empty() {
                 return sestype.to_lowercase();
@@ -175,7 +175,7 @@ fn _get_values_of_seat0(indices: &[usize], ignore_gdm_wayland: bool) -> Vec<Stri
                             continue;
                         }
                     }
-                    if d == "tty" {
+                    if d == "tty" || d == "unspecified" {
                         continue;
                     }
                     return line_values(indices, line);
