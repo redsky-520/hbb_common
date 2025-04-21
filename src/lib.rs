@@ -120,7 +120,7 @@ impl Stream {
 }
 
 impl Stream {
-    /// 从 TCP 流创建（自动判断是否升级为 WebSocket）
+    /// establish connect from tcp.
     pub async fn from_tcp(
         stream: tokio::net::TcpStream,
         addr: SocketAddr,
@@ -135,7 +135,7 @@ impl Stream {
         }
     }
 
-    /// 创建 WebSocket 客户端连接
+    /// establish connect from websocket
     pub async fn connect_websocket(
         url: impl AsRef<str>,
         local_addr: Option<SocketAddr>,
@@ -147,7 +147,7 @@ impl Stream {
         Ok(Self::WebSocket(ws_stream))
     }
 
-    /// 发送消息
+    /// send message
     pub async fn send(&mut self, msg: &impl protobuf::Message) -> ResultType<()> {
         match self {
             Self::WebSocket(ws) => ws.send(msg).await,
@@ -155,7 +155,7 @@ impl Stream {
         }
     }
 
-    /// 接收消息
+    /// receive message
     pub async fn next(&mut self) -> Option<Result<bytes::BytesMut, std::io::Error>> {
         match self {
             Self::WebSocket(ws) => ws.next().await,
@@ -163,7 +163,6 @@ impl Stream {
         }
     }
 
-    // 其他必要的方法...
     pub fn local_addr(&self) -> SocketAddr {
         match self {
             Self::WebSocket(ws) => ws.local_addr(),
