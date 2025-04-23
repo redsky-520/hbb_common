@@ -69,7 +69,9 @@ impl WsFramedStream {
                 send_timeout: ms_timeout,
             })
         } else {
-            let (stream, _) = connect_async(url_str).await?;
+            log::info!("{:?}", url_str);
+            let ws_url = format!("ws://{}", url_str);
+            let (stream, _) = connect_async(ws_url).await?;
 
             let addr = match stream.get_ref() {
                 MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
