@@ -29,8 +29,6 @@ pub struct WsFramedStream {
     // read_buf: BytesMut,
 }
 
-const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(3);
-const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(10);
 impl WsFramedStream {
     pub async fn new<T: AsRef<str>>(
         url: T,
@@ -180,7 +178,6 @@ impl WsFramedStream {
     #[inline]
     pub async fn next(&mut self) -> Option<Result<BytesMut, Error>> {
         log::debug!("Waiting for next message");
-        let start = std::time::Instant::now();
 
         loop {
             match self.stream.next().await {
@@ -242,10 +239,6 @@ impl WsFramedStream {
                 }
             }
 
-            if start.elapsed() > HEARTBEAT_TIMEOUT {
-                log::warn!("No message received within heartbeat timeout");
-                return Some(Err(Error::new(ErrorKind::TimedOut, "Heartbeat timeout")));
-            }
         }
     }
 
