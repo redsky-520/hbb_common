@@ -93,7 +93,7 @@ impl WsFramedStream {
 
     pub async fn from_tcp_stream(stream: TcpStream, addr: SocketAddr) -> ResultType<Self> {
         let ws_stream =
-            WebSocketStream::from_raw_socket(MaybeTlsStream::Plain(stream), Role::Server, None)
+            WebSocketStream::from_raw_socket(MaybeTlsStream::Plain(stream), Role::Client, None)
                 .await;
 
         Ok(Self {
@@ -169,6 +169,7 @@ impl WsFramedStream {
 
     #[inline]
     pub async fn next(&mut self) -> Option<Result<BytesMut, Error>> {
+        log::info!("test");
         loop {
             match self.stream.next().await? {
                 Ok(WsMessage::Binary(data)) => {
@@ -180,6 +181,16 @@ impl WsFramedStream {
                     }
                     return Some(Ok(bytes));
                 }
+                Ok(WsMessage::Ping(ping)) => {
+                    if let Err(e) = self.stream.send(WsMessage::Pong(ping)).await {
+                        return Some(Err(Error::new(
+                            ErrorKind::Other,
+                            format!("Failed to send pong: {}", e),
+                        )));
+                    }
+                    continue;
+                }
+                Ok(WsMessage::Close(_)) => return None,
                 Ok(_) => continue,
                 Err(e) => return Some(Err(Error::new(ErrorKind::Other, e))),
             }
