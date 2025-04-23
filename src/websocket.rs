@@ -38,69 +38,63 @@ impl WsFramedStream {
     ) -> ResultType<Self> {
         let url_str = url.as_ref();
 
-        if let Some(proxy_conf) = proxy_conf {
-            // use proxy connect
-            let url_obj = url::Url::parse(url_str)?;
-            let host = url_obj
-                .host_str()
-                .ok_or_else(|| Error::new(ErrorKind::Other, "Invalid URL: no host"))?;
+        // if let Some(proxy_conf) = proxy_conf {
+        //     // use proxy connect
+        //     let url_obj = url::Url::parse(url_str)?;
+        //     let host = url_obj
+        //         .host_str()
+        //         .ok_or_else(|| Error::new(ErrorKind::Other, "Invalid URL: no host"))?;
 
-            let port = url_obj
-                .port()
-                .unwrap_or(if url_obj.scheme() == "wss" { 443 } else { 80 });
+        //     let port = url_obj
+        //         .port()
+        //         .unwrap_or(if url_obj.scheme() == "wss" { 443 } else { 80 });
 
-            let socket =
-                tokio_socks::tcp::Socks5Stream::connect(proxy_conf.proxy.as_str(), (host, port))
-                    .await?;
+        //     let socket =
+        //         tokio_socks::tcp::Socks5Stream::connect(proxy_conf.proxy.as_str(), (host, port))
+        //             .await?;
 
-            let tcp_stream = socket.into_inner();
-            let maybe_tls_stream = MaybeTlsStream::Plain(tcp_stream);
-            let ws_stream =
-                WebSocketStream::from_raw_socket(maybe_tls_stream, Role::Client, None).await;
+        //     let tcp_stream = socket.into_inner();
+        //     let maybe_tls_stream = MaybeTlsStream::Plain(tcp_stream);
+        //     let ws_stream =
+        //         WebSocketStream::from_raw_socket(maybe_tls_stream, Role::Client, None).await;
 
-            let addr = match ws_stream.get_ref() {
-                MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
-                _ => return Err(Error::new(ErrorKind::Other, "Unsupported stream type").into()),
-            };
+        //     let addr = match ws_stream.get_ref() {
+        //         MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
+        //         _ => return Err(Error::new(ErrorKind::Other, "Unsupported stream type").into()),
+        //     };
 
-            let ws = Self {
-                stream: ws_stream,
-                addr,
-                encrypt: None,
-                send_timeout: ms_timeout,
-            };
+        //     let ws = Self {
+        //         stream: ws_stream,
+        //         addr,
+        //         encrypt: None,
+        //         send_timeout: ms_timeout,
+        //     };
 
-            Ok(ws)
-        } else {
-            log::info!("{:?}", url_str);
+        //     Ok(ws)
+        // } else {
+        log::info!("{:?}", url_str);
 
-            let request = url_str
-                .into_client_request()
-                .map_err(|e| Error::new(ErrorKind::Other, e))?;
+        let request = url_str
+            .into_client_request()
+            .map_err(|e| Error::new(ErrorKind::Other, e))?;
 
-            // 添加必要协议头
-            // request.headers_mut().insert(
-            //     "Sec-WebSocket-Protocol",
-            //     tungstenite::http::HeaderValue::from_static("rustdesk"),
-            // );
+        let (stream, _) =
+            timeout(Duration::from_millis(ms_timeout), connect_async(request)).await??;
 
-            let (stream, _) =
-                timeout(Duration::from_millis(ms_timeout), connect_async(request)).await??;
+        let addr = match stream.get_ref() {
+            MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
+            _ => return Err(Error::new(ErrorKind::Other, "Unsupported stream type").into()),
+        };
 
-            let addr = match stream.get_ref() {
-                MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
-                _ => return Err(Error::new(ErrorKind::Other, "Unsupported stream type").into()),
-            };
+        let ws = Self {
+            stream,
+            addr,
+            encrypt: None,
+            send_timeout: ms_timeout,
+        };
 
-            let mut ws = Self {
-                stream,
-                addr,
-                encrypt: None,
-                send_timeout: ms_timeout,
-            };
-
-            Ok(ws)
-        }
+        Ok(ws)
+        // }
     }
 
     pub fn set_raw(&mut self) {}
@@ -180,6 +174,7 @@ impl WsFramedStream {
             let msg = match msg {
                 Ok(msg) => msg,
                 Err(e) => {
+                    log::debug!("{}", e);
                     return Some(Err(Error::new(
                         ErrorKind::Other,
                         format!("WebSocket protocol error: {}", e),
