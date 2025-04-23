@@ -116,11 +116,7 @@ pub async fn connect_tcp_local<
 ) -> ResultType<Stream> {
     let target_str = target.to_string();
 
-    // if target_str.starts_with("ws://") || target_str.starts_with("wss://") {
-    //     Ok(Stream::WebSocket(
-    //         websocket::WsFramedStream::new(target_str, local, None, ms_timeout).await?,
-    //     ))
-    if true {
+    if target_str.starts_with("ws://") || target_str.starts_with("wss://") {
         Ok(Stream::WebSocket(
             websocket::WsFramedStream::new(target_str, local, None, ms_timeout).await?,
         ))

@@ -15,6 +15,7 @@ use tokio::{net::TcpStream, time::timeout};
 use tokio_tungstenite::{
     connect_async, tungstenite::protocol::Message as WsMessage, MaybeTlsStream, WebSocketStream,
 };
+use tungstenite::client::IntoClientRequest;
 use tungstenite::protocol::Role;
 
 #[derive(Clone)]
@@ -70,15 +71,11 @@ impl WsFramedStream {
             })
         } else {
             log::info!("{:?}", url_str);
-            let ws_url = format!("ws://{}", url_str);
-            let (stream, _) = connect_async(ws_url).await?;
+
+            let (stream, _) = connect_async(url_str.into_client_request().unwrap()).await?;
 
             let addr = match stream.get_ref() {
                 MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
-                #[cfg(feature = "native-tls")]
-                MaybeTlsStream::NativeTls(tls) => tls.get_ref().peer_addr()?,
-                #[cfg(feature = "rustls")]
-                MaybeTlsStream::Rustls(tls) => tls.get_ref().0.peer_addr()?,
                 _ => return Err(Error::new(ErrorKind::Other, "Unsupported stream type").into()),
             };
 
