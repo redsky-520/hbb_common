@@ -72,7 +72,18 @@ impl WsFramedStream {
         } else {
             log::info!("{:?}", url_str);
 
-            let (stream, _) = connect_async(url_str.into_client_request().unwrap()).await?;
+            let mut request = url_str
+                .into_client_request()
+                .map_err(|e| Error::new(ErrorKind::Other, e))?;
+
+            // 添加必要协议头
+            // request.headers_mut().insert(
+            //     "Sec-WebSocket-Protocol",
+            //     tungstenite::http::HeaderValue::from_static("rustdesk"),
+            // );
+
+            let (stream, _) =
+                timeout(Duration::from_millis(ms_timeout), connect_async(request)).await??;
 
             let addr = match stream.get_ref() {
                 MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
@@ -141,10 +152,6 @@ impl WsFramedStream {
 
     #[inline]
     pub async fn send_raw(&mut self, msg: Vec<u8>) -> ResultType<()> {
-        let mut msg = msg;
-        if let Some(key) = self.encrypt.as_mut() {
-            msg = key.enc(&msg);
-        }
         self.send_bytes(bytes::Bytes::from(msg)).await
     }
 
@@ -187,6 +194,10 @@ impl WsFramedStream {
                             format!("Failed to send pong: {}", e),
                         )));
                     }
+                    continue;
+                }
+                Ok(WsMessage::Pong(_)) => {
+                    log::debug!("Received pong");
                     continue;
                 }
                 Ok(WsMessage::Close(_)) => return None,
