@@ -112,19 +112,6 @@ impl WsFramedStream {
         })
     }
 
-    pub async fn from(stream: TcpStream, addr: SocketAddr) -> Self {
-        let ws_stream =
-            WebSocketStream::from_raw_socket(MaybeTlsStream::Plain(stream), Role::Client, None)
-                .await;
-
-        Self {
-            stream: ws_stream,
-            addr,
-            encrypt: None,
-            send_timeout: 0,
-        }
-    }
-
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
     }
@@ -200,6 +187,11 @@ impl WsFramedStream {
                             }
                         }
                     }
+                    return Some(Ok(bytes));
+                }
+                WsMessage::Text(text) => {
+                    log::debug!("Received text message, converting to binary");
+                    let bytes = BytesMut::from(text.as_bytes());
                     return Some(Ok(bytes));
                 }
                 WsMessage::Close(_) => {

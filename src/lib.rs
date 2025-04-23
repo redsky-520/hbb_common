@@ -117,23 +117,6 @@ impl Stream {
             Stream::Tcp(s) => s.next_timeout(timeout).await,
         }
     }
-}
-
-impl Stream {
-    /// establish connect from tcp.
-    pub async fn from_tcp(
-        stream: tokio::net::TcpStream,
-        addr: SocketAddr,
-        is_websocket: bool,
-    ) -> ResultType<Self> {
-        if is_websocket {
-            Ok(Self::WebSocket(
-                websocket::WsFramedStream::from(stream, addr).await,
-            ))
-        } else {
-            Ok(Self::Tcp(tcp::FramedStream::from(stream, addr)))
-        }
-    }
 
     /// establish connect from websocket
     pub async fn connect_websocket(
@@ -144,6 +127,7 @@ impl Stream {
     ) -> ResultType<Self> {
         let ws_stream =
             websocket::WsFramedStream::new(url, local_addr, proxy_conf, timeout_ms).await?;
+        log::debug!("WebSocket connection established");
         Ok(Self::WebSocket(ws_stream))
     }
 
@@ -168,10 +152,6 @@ impl Stream {
             Self::WebSocket(ws) => ws.local_addr(),
             Self::Tcp(tcp) => tcp.local_addr(),
         }
-    }
-
-    pub fn is_websocket(&self) -> bool {
-        matches!(self, Self::WebSocket(_))
     }
 }
 
