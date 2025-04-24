@@ -1,3 +1,4 @@
+use crate::tcp::Encrypt;
 use crate::{
     config::Socks5Server,
     protobuf::Message,
@@ -17,9 +18,6 @@ use tokio_tungstenite::{
 };
 use tungstenite::client::IntoClientRequest;
 use tungstenite::protocol::Role;
-
-#[derive(Clone)]
-pub struct Encrypt(Key, u64, u64);
 
 pub struct WsFramedStream {
     stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
@@ -176,19 +174,10 @@ impl WsFramedStream {
                     log::info!("Received binary data ({} bytes)", data.len());
                     let mut bytes = BytesMut::from(&data[..]);
                     if let Some(key) = self.encrypt.as_mut() {
-                        log::debug!("Decrypting data with seq: {}", key.2);
-                        match key.dec(&mut bytes) {
-                            Ok(_) => {
-                                log::debug!("Decryption successful");
-                                return Some(Ok(bytes));
-                            }
-                            Err(e) => {
-                                log::error!("Decryption failed: {}", e);
-                                return Some(Err(e));
-                            }
+                        if let Err(err) = key.dec(&mut bytes) {
+                            return Some(Err(err));
                         }
                     }
-                    log::error!("not encrypt set.");
                     return Some(Ok(bytes));
                 }
                 WsMessage::Text(text) => {
@@ -217,38 +206,4 @@ impl WsFramedStream {
             Err(_) => None,
         }
     }
-}
-
-impl Encrypt {
-    pub fn new(key: Key) -> Self {
-        Self(key, 0, 0)
-    }
-
-    pub fn dec(&mut self, bytes: &mut BytesMut) -> Result<(), Error> {
-        if bytes.len() <= 1 {
-            return Ok(());
-        }
-        self.2 += 1;
-        let nonce = get_nonce(self.2);
-        match secretbox::open(bytes, &nonce, &self.0) {
-            Ok(res) => {
-                bytes.clear();
-                bytes.put_slice(&res);
-                Ok(())
-            }
-            Err(()) => Err(Error::new(ErrorKind::Other, "decryption error")),
-        }
-    }
-
-    pub fn enc(&mut self, data: &[u8]) -> Vec<u8> {
-        self.1 += 1;
-        let nonce = get_nonce(self.1);
-        secretbox::seal(data, &nonce, &self.0)
-    }
-}
-
-fn get_nonce(seqnum: u64) -> Nonce {
-    let mut nonce = Nonce([0u8; secretbox::NONCEBYTES]);
-    nonce.0[..std::mem::size_of_val(&seqnum)].copy_from_slice(&seqnum.to_le_bytes());
-    nonce
 }
