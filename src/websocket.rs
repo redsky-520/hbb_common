@@ -188,6 +188,7 @@ impl WsFramedStream {
                             }
                         }
                     }
+                    log::error!("not encrypt set.");
                     return Some(Ok(bytes));
                 }
                 WsMessage::Text(text) => {
