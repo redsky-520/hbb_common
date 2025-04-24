@@ -95,7 +95,9 @@ impl WsFramedStream {
         // }
     }
 
-    pub fn set_raw(&mut self) {}
+    pub fn set_raw(&mut self) {
+        self.encrypt = None;
+    }
 
     pub async fn from_tcp_stream(stream: TcpStream, addr: SocketAddr) -> ResultType<Self> {
         let ws_stream =
@@ -133,6 +135,10 @@ impl WsFramedStream {
 
     #[inline]
     pub async fn send_raw(&mut self, msg: Vec<u8>) -> ResultType<()> {
+        let mut msg = msg;
+        if let Some(key) = self.encrypt.as_mut() {
+            msg = key.enc(&msg);
+        }
         self.send_bytes(Bytes::from(msg)).await
     }
 
