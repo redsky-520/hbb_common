@@ -135,7 +135,7 @@ impl WsFramedStream {
 
     #[inline]
     pub async fn send_raw(&mut self, msg: Vec<u8>) -> ResultType<()> {
-        self.send_bytes(bytes::Bytes::from(msg)).await
+        self.send_bytes(Bytes::from(msg)).await
     }
 
     #[inline]
@@ -158,6 +158,7 @@ impl WsFramedStream {
         log::debug!("Waiting for next message");
 
         while let Some(msg) = self.stream.next().await {
+            log::debug!("receive msg: {:?}", msg);
             let msg = match msg {
                 Ok(msg) => msg,
                 Err(e) => {
