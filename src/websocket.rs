@@ -1,11 +1,8 @@
 use crate::tcp::Encrypt;
 use crate::{
-    config::Socks5Server,
-    protobuf::Message,
-    sodiumoxide::crypto::secretbox::{self, Key, Nonce},
-    ResultType,
+    config::Socks5Server, protobuf::Message, sodiumoxide::crypto::secretbox::Key, ResultType,
 };
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, StreamExt};
 use std::{
     io::{Error, ErrorKind},
@@ -24,7 +21,6 @@ pub struct WsFramedStream {
     addr: SocketAddr,
     encrypt: Option<Encrypt>,
     send_timeout: u64,
-    // read_buf: BytesMut,
 }
 
 impl WsFramedStream {
@@ -36,40 +32,7 @@ impl WsFramedStream {
     ) -> ResultType<Self> {
         let url_str = url.as_ref();
 
-        // if let Some(proxy_conf) = proxy_conf {
-        //     // use proxy connect
-        //     let url_obj = url::Url::parse(url_str)?;
-        //     let host = url_obj
-        //         .host_str()
-        //         .ok_or_else(|| Error::new(ErrorKind::Other, "Invalid URL: no host"))?;
-
-        //     let port = url_obj
-        //         .port()
-        //         .unwrap_or(if url_obj.scheme() == "wss" { 443 } else { 80 });
-
-        //     let socket =
-        //         tokio_socks::tcp::Socks5Stream::connect(proxy_conf.proxy.as_str(), (host, port))
-        //             .await?;
-
-        //     let tcp_stream = socket.into_inner();
-        //     let maybe_tls_stream = MaybeTlsStream::Plain(tcp_stream);
-        //     let ws_stream =
-        //         WebSocketStream::from_raw_socket(maybe_tls_stream, Role::Client, None).await;
-
-        //     let addr = match ws_stream.get_ref() {
-        //         MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
-        //         _ => return Err(Error::new(ErrorKind::Other, "Unsupported stream type").into()),
-        //     };
-
-        //     let ws = Self {
-        //         stream: ws_stream,
-        //         addr,
-        //         encrypt: None,
-        //         send_timeout: ms_timeout,
-        //     };
-
-        //     Ok(ws)
-        // } else {
+        // to-do: websocket proxy.
         log::info!("{:?}", url_str);
 
         let request = url_str
@@ -92,7 +55,6 @@ impl WsFramedStream {
         };
 
         Ok(ws)
-        // }
     }
 
     pub fn set_raw(&mut self) {

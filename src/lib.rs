@@ -60,6 +60,7 @@ pub use flexi_logger;
 pub mod websocket;
 use sodiumoxide::crypto::secretbox::Key;
 
+// support Websocket and tcp.
 pub enum Stream {
     WebSocket(websocket::WsFramedStream),
     Tcp(tcp::FramedStream),
