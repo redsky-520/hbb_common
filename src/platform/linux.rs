@@ -204,6 +204,15 @@ pub fn is_active_and_seat0(sid: &str) -> bool {
     }
 }
 
+// Check both "Lock" and "Switch user"
+pub fn is_session_locked(sid: &str) -> bool {
+    if let Ok(output) = run_loginctl(Some(vec!["show-session", sid, "--property=LockedHint"])) {
+        String::from_utf8_lossy(&output.stdout).contains("LockedHint=yes")
+    } else {
+        false
+    }
+}
+
 // **Note** that the return value here, the last character is '\n'.
 // Use `run_cmds_trim_newline()` if you want to remove '\n' at the end.
 pub fn run_cmds(cmds: &str) -> ResultType<String> {
