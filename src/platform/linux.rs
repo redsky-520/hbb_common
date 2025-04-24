@@ -104,7 +104,7 @@ pub fn get_display_server_of_session(session: &str) -> String {
     } else {
         "".to_owned()
     };
-    if display_server.is_empty() || display_server == "tty" {
+    if display_server.is_empty() || display_server == "tty" || display_server == "unspecified" {
         if let Ok(sestype) = std::env::var("XDG_SESSION_TYPE") {
             if !sestype.is_empty() {
                 return sestype.to_lowercase();
@@ -175,7 +175,7 @@ fn _get_values_of_seat0(indices: &[usize], ignore_gdm_wayland: bool) -> Vec<Stri
                             continue;
                         }
                     }
-                    if d == "tty" {
+                    if d == "tty" || d == "unspecified" {
                         continue;
                     }
                     return line_values(indices, line);
@@ -199,6 +199,15 @@ pub fn is_active_and_seat0(sid: &str) -> bool {
     if let Ok(output) = run_loginctl(Some(vec!["show-session", sid])) {
         String::from_utf8_lossy(&output.stdout).contains("State=active")
             && String::from_utf8_lossy(&output.stdout).contains("Seat=seat0")
+    } else {
+        false
+    }
+}
+
+// Check both "Lock" and "Switch user"
+pub fn is_session_locked(sid: &str) -> bool {
+    if let Ok(output) = run_loginctl(Some(vec!["show-session", sid, "--property=LockedHint"])) {
+        String::from_utf8_lossy(&output.stdout).contains("LockedHint=yes")
     } else {
         false
     }
