@@ -1,6 +1,6 @@
-use crate::tcp::Encrypt;
 use crate::{
-    config::Socks5Server, protobuf::Message, sodiumoxide::crypto::secretbox::Key, ResultType,
+    config::Socks5Server, protobuf::Message, sodiumoxide::crypto::secretbox::Key, tcp::Encrypt,
+    ResultType,
 };
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, StreamExt};
@@ -57,10 +57,12 @@ impl WsFramedStream {
         Ok(ws)
     }
 
+    #[inline]
     pub fn set_raw(&mut self) {
         self.encrypt = None;
     }
 
+    #[inline]
     pub async fn from_tcp_stream(stream: TcpStream, addr: SocketAddr) -> ResultType<Self> {
         let ws_stream =
             WebSocketStream::from_raw_socket(MaybeTlsStream::Plain(stream), Role::Client, None)
@@ -74,18 +76,22 @@ impl WsFramedStream {
         })
     }
 
+    #[inline]
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
     }
 
+    #[inline]
     pub fn set_send_timeout(&mut self, ms: u64) {
         self.send_timeout = ms;
     }
 
+    #[inline]
     pub fn set_key(&mut self, key: Key) {
         self.encrypt = Some(Encrypt::new(key));
     }
 
+    #[inline]
     pub fn is_secured(&self) -> bool {
         self.encrypt.is_some()
     }
@@ -104,7 +110,6 @@ impl WsFramedStream {
         self.send_bytes(Bytes::from(msg)).await
     }
 
-    #[inline]
     pub async fn send_bytes(&mut self, bytes: Bytes) -> ResultType<()> {
         let msg = WsMessage::Binary(bytes);
         if self.send_timeout > 0 {

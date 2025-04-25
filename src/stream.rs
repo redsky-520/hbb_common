@@ -1,8 +1,5 @@
-use crate::tcp;
-use crate::websocket;
+use crate::{config, tcp, websocket, ResultType};
 use sodiumoxide::crypto::secretbox::Key;
-use crate::config;
-use crate::ResultType;
 use std::net::SocketAddr;
 
 // support Websocket and tcp.
@@ -12,6 +9,7 @@ pub enum Stream {
 }
 
 impl Stream {
+    #[inline]
     pub fn set_send_timeout(&mut self, ms: u64) {
         match self {
             Stream::WebSocket(s) => s.set_send_timeout(ms),
@@ -19,6 +17,7 @@ impl Stream {
         }
     }
 
+    #[inline]
     pub fn set_raw(&mut self) {
         match self {
             Stream::WebSocket(s) => s.set_raw(),
@@ -26,6 +25,7 @@ impl Stream {
         }
     }
 
+    #[inline]
     pub async fn send_bytes(&mut self, bytes: bytes::Bytes) -> ResultType<()> {
         match self {
             Stream::WebSocket(s) => s.send_bytes(bytes).await,
@@ -33,6 +33,7 @@ impl Stream {
         }
     }
 
+    #[inline]
     pub async fn send_raw(&mut self, bytes: Vec<u8>) -> ResultType<()> {
         match self {
             Stream::WebSocket(s) => s.send_raw(bytes).await,
@@ -40,6 +41,7 @@ impl Stream {
         }
     }
 
+    #[inline]
     pub fn set_key(&mut self, key: Key) {
         match self {
             Stream::WebSocket(s) => s.set_key(key),
@@ -47,6 +49,7 @@ impl Stream {
         }
     }
 
+    #[inline]
     pub fn is_secured(&self) -> bool {
         match self {
             Stream::WebSocket(s) => s.is_secured(),
@@ -54,6 +57,7 @@ impl Stream {
         }
     }
 
+    #[inline]
     pub async fn next_timeout(
         &mut self,
         timeout: u64,
@@ -65,6 +69,7 @@ impl Stream {
     }
 
     /// establish connect from websocket
+    #[inline]
     pub async fn connect_websocket(
         url: impl AsRef<str>,
         local_addr: Option<SocketAddr>,
@@ -78,6 +83,7 @@ impl Stream {
     }
 
     /// send message
+    #[inline]
     pub async fn send(&mut self, msg: &impl protobuf::Message) -> ResultType<()> {
         match self {
             Self::WebSocket(ws) => ws.send(msg).await,
@@ -86,6 +92,7 @@ impl Stream {
     }
 
     /// receive message
+    #[inline]
     pub async fn next(&mut self) -> Option<Result<bytes::BytesMut, std::io::Error>> {
         match self {
             Self::WebSocket(ws) => ws.next().await,
@@ -93,6 +100,7 @@ impl Stream {
         }
     }
 
+    #[inline]
     pub fn local_addr(&self) -> SocketAddr {
         match self {
             Self::WebSocket(ws) => ws.local_addr(),
