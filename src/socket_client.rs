@@ -2,7 +2,7 @@ use crate::{
     config::{Config, NetworkType},
     tcp::FramedStream,
     udp::FramedSocket,
-    ResultType,
+    websocket, ResultType, Stream,
 };
 use anyhow::Context;
 use std::net::SocketAddr;
@@ -102,7 +102,7 @@ pub async fn connect_tcp<
 >(
     target: T,
     ms_timeout: u64,
-) -> ResultType<FramedStream> {
+) -> ResultType<crate::Stream> {
     connect_tcp_local(target, None, ms_timeout).await
 }
 
@@ -113,19 +113,35 @@ pub async fn connect_tcp_local<
     target: T,
     local: Option<SocketAddr>,
     ms_timeout: u64,
-) -> ResultType<FramedStream> {
-    if let Some(conf) = Config::get_socks() {
-        return FramedStream::connect(target, local, &conf, ms_timeout).await;
-    }
-    if let Some(target) = target.resolve() {
-        if let Some(local) = local {
-            if local.is_ipv6() && target.is_ipv4() {
-                let target = query_nip_io(target).await?;
-                return FramedStream::new(target, Some(local), ms_timeout).await;
+) -> ResultType<Stream> {
+    let target_str = target.to_string();
+
+    if target_str.starts_with("ws://") || target_str.starts_with("wss://") {
+        Ok(Stream::WebSocket(
+            websocket::WsFramedStream::new(target_str, local, None, ms_timeout).await?,
+        ))
+    } else {
+        if let Some(conf) = Config::get_socks() {
+            return Ok(Stream::Tcp(
+                FramedStream::connect(target, local, &conf, ms_timeout).await?,
+            ));
+        }
+
+        if let Some(target_addr) = target.resolve() {
+            if let Some(local_addr) = local {
+                if local_addr.is_ipv6() && target_addr.is_ipv4() {
+                    let resolved_target = query_nip_io(target_addr).await?;
+                    return Ok(Stream::Tcp(
+                        FramedStream::new(resolved_target, Some(local_addr), ms_timeout).await?,
+                    ));
+                }
             }
         }
+
+        Ok(Stream::Tcp(
+            FramedStream::new(target, local, ms_timeout).await?,
+        ))
     }
-    FramedStream::new(target, local, ms_timeout).await
 }
 
 #[inline]

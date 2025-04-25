@@ -25,7 +25,7 @@ pub trait TcpStreamTrait: AsyncRead + AsyncWrite + Unpin {}
 pub struct DynTcpStream(pub(crate) Box<dyn TcpStreamTrait + Send + Sync>);
 
 #[derive(Clone)]
-pub struct Encrypt(Key, u64, u64);
+pub struct Encrypt(pub Key, pub u64, pub u64);
 
 pub struct FramedStream(
     pub(crate) Framed<DynTcpStream, BytesCodec>,
