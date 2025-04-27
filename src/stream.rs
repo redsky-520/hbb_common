@@ -1,6 +1,7 @@
 use crate::{config, tcp, websocket, ResultType};
 use sodiumoxide::crypto::secretbox::Key;
 use std::net::SocketAddr;
+use tokio::net::TcpStream;
 
 // support Websocket and tcp.
 pub enum Stream {
@@ -106,5 +107,10 @@ impl Stream {
             Self::WebSocket(ws) => ws.local_addr(),
             Self::Tcp(tcp) => tcp.local_addr(),
         }
+    }
+
+    #[inline]
+    pub fn from(stream: TcpStream, stream_addr: SocketAddr) -> Self {
+        Self::Tcp(tcp::FramedStream::from(stream, stream_addr))
     }
 }
