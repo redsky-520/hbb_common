@@ -849,6 +849,20 @@ message VoiceCallResponse {
   int64 ack_timestamp = 3;
 }
 
+message ScreenshotRequest {
+  int32 display = 1;
+  // sid is the session id on the controlling side
+  // It is used to forward the message to the correct remote (session) window.
+  string sid = 2;
+}
+
+message ScreenshotResponse {
+  string sid = 1;
+  // empty if success
+  string msg = 2;
+  bytes data = 3;
+}
+
 message Message {
   oneof union {
     SignedId signed_id = 3;
@@ -877,5 +891,7 @@ message Message {
     PointerDeviceEvent pointer_device_event = 26;
     Auth2FA auth_2fa = 27;
     MultiClipboards multi_clipboards = 28;
+    ScreenshotRequest screenshot_request = 29;
+    ScreenshotResponse screenshot_response= 30;
   }
 }
