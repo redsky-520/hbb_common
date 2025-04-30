@@ -64,6 +64,7 @@ rustls-platform-verifier = "0.5"
 rustls-pki-types = "1.11"
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 tokio-native-tls = "0.3"
+whoami = "1.5.0"
 
 [build-dependencies]
 protobuf-codegen = { version = "3.7" }

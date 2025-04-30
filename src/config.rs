@@ -560,7 +560,7 @@ impl Config {
         }
         if !id_valid {
             for _ in 0..3 {
-                if let Some(id) = Config::get_auto_id() {
+                if let Some(id) = Config::gen_id() {
                     config.id = id;
                     store = true;
                     break;
@@ -822,6 +822,32 @@ impl Config {
         std::cmp::max(CONFIG2.read().unwrap().serial, SERIAL)
     }
 
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    fn gen_id() -> Option<String> {
+        Self::get_auto_id()
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    fn gen_id() -> Option<String> {
+        let hostname_as_id = BUILTIN_SETTINGS
+            .read()
+            .unwrap()
+            .get(keys::OPTION_ALLOW_HOSTNAME_AS_ID)
+            .map(|v| option2bool(keys::OPTION_ALLOW_HOSTNAME_AS_ID, v))
+            .unwrap_or(false);
+        if hostname_as_id {
+            match whoami::fallible::hostname() {
+                Ok(h) => Some(h.replace(" ", "-")),
+                Err(e) => {
+                    log::warn!("Failed to get hostname, \"{}\", fallback to auto id", e);
+                    Self::get_auto_id()
+                }
+            }
+        } else {
+            Self::get_auto_id()
+        }
+    }
+
     fn get_auto_id() -> Option<String> {
         #[cfg(any(target_os = "android", target_os = "ios"))]
         {
@@ -909,7 +935,7 @@ impl Config {
     pub fn get_id() -> String {
         let mut id = CONFIG.read().unwrap().id.clone();
         if id.is_empty() {
-            if let Some(tmp) = Config::get_auto_id() {
+            if let Some(tmp) = Config::gen_id() {
                 id = tmp;
                 Config::set_id(&id);
             }
@@ -2369,6 +2395,7 @@ pub mod keys {
     pub const OPTION_ALLOW_LOGON_SCREEN_PASSWORD: &str = "allow-logon-screen-password";
     pub const OPTION_ONE_WAY_FILE_TRANSFER: &str = "one-way-file-transfer";
     pub const OPTION_ALLOW_HTTPS_21114: &str = "allow-https-21114";
+    pub const OPTION_ALLOW_HOSTNAME_AS_ID: &str = "allow-hostname-as-id";
 
     // flutter local options
     pub const OPTION_FLUTTER_REMOTE_MENUBAR_STATE: &str = "remoteMenubarState";
@@ -2528,6 +2555,7 @@ pub mod keys {
         OPTION_ALLOW_LOGON_SCREEN_PASSWORD,
         OPTION_ONE_WAY_FILE_TRANSFER,
         OPTION_ALLOW_HTTPS_21114,
+        OPTION_ALLOW_HOSTNAME_AS_ID,
     ];
 }
 
