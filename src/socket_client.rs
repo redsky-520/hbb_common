@@ -2,7 +2,8 @@ use crate::{
     config::{Config, NetworkType},
     tcp::FramedStream,
     udp::FramedSocket,
-    websocket, ResultType, Stream,
+    websocket::{self, check_ws, is_ws_endpoint},
+    ResultType, Stream,
 };
 use anyhow::Context;
 use std::net::SocketAddr;
@@ -47,6 +48,30 @@ pub fn increase_port<T: std::string::ToString>(host: T, offset: i32) -> String {
         }
     }
     host
+}
+
+pub fn split_host_port<T: std::string::ToString>(host: T) -> Option<(String, i32)> {
+    let host = host.to_string();
+    if crate::is_ipv6_str(&host) {
+        if host.starts_with('[') {
+            let tmp: Vec<&str> = host.split("]:").collect();
+            if tmp.len() == 2 {
+                let port: i32 = tmp[1].parse().unwrap_or(0);
+                if port > 0 {
+                    return Some((format!("{}]", tmp[0]), port));
+                }
+            }
+        }
+    } else if host.contains(':') {
+        let tmp: Vec<&str> = host.split(':').collect();
+        if tmp.len() == 2 {
+            let port: i32 = tmp[1].parse().unwrap_or(0);
+            if port > 0 {
+                return Some((tmp[0].to_string(), port));
+            }
+        }
+    }
+    None
 }
 
 pub fn test_if_valid_server(host: &str, test_with_proxy: bool) -> String {
@@ -95,6 +120,7 @@ impl IsResolvedSocketAddr for &str {
     }
 }
 
+// This function checks if the target is a websocket endpoint and connects accordingly.
 #[inline]
 pub async fn connect_tcp<
     't,
@@ -103,9 +129,16 @@ pub async fn connect_tcp<
     target: T,
     ms_timeout: u64,
 ) -> ResultType<crate::Stream> {
+    let target_str = check_ws(&target.to_string());
+    if is_ws_endpoint(&target_str) {
+        return Ok(Stream::WebSocket(
+            websocket::WsFramedStream::new(target_str, None, None, ms_timeout).await?,
+        ));
+    }
     connect_tcp_local(target, None, ms_timeout).await
 }
 
+// This function connects directly to the target without checking for websocket endpoints.
 pub async fn connect_tcp_local<
     't,
     T: IntoTargetAddr<'t> + ToSocketAddrs + IsResolvedSocketAddr + std::fmt::Display,
@@ -114,34 +147,26 @@ pub async fn connect_tcp_local<
     local: Option<SocketAddr>,
     ms_timeout: u64,
 ) -> ResultType<Stream> {
-    let target_str = target.to_string();
+    if let Some(conf) = Config::get_socks() {
+        return Ok(Stream::Tcp(
+            FramedStream::connect(target, local, &conf, ms_timeout).await?,
+        ));
+    }
 
-    if target_str.starts_with("ws://") || target_str.starts_with("wss://") {
-        Ok(Stream::WebSocket(
-            websocket::WsFramedStream::new(target_str, local, None, ms_timeout).await?,
-        ))
-    } else {
-        if let Some(conf) = Config::get_socks() {
-            return Ok(Stream::Tcp(
-                FramedStream::connect(target, local, &conf, ms_timeout).await?,
-            ));
-        }
-
-        if let Some(target_addr) = target.resolve() {
-            if let Some(local_addr) = local {
-                if local_addr.is_ipv6() && target_addr.is_ipv4() {
-                    let resolved_target = query_nip_io(target_addr).await?;
-                    return Ok(Stream::Tcp(
-                        FramedStream::new(resolved_target, Some(local_addr), ms_timeout).await?,
-                    ));
-                }
+    if let Some(target_addr) = target.resolve() {
+        if let Some(local_addr) = local {
+            if local_addr.is_ipv6() && target_addr.is_ipv4() {
+                let resolved_target = query_nip_io(target_addr).await?;
+                return Ok(Stream::Tcp(
+                    FramedStream::new(resolved_target, Some(local_addr), ms_timeout).await?,
+                ));
             }
         }
-
-        Ok(Stream::Tcp(
-            FramedStream::new(target, local, ms_timeout).await?,
-        ))
     }
+
+    Ok(Stream::Tcp(
+        FramedStream::new(target, local, ms_timeout).await?,
+    ))
 }
 
 #[inline]
