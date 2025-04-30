@@ -60,6 +60,7 @@ pub use flexi_logger;
 pub mod websocket;
 pub mod stream;
 pub use stream::Stream;
+pub use whoami;
 
 pub type SessionID = uuid::Uuid;
 
