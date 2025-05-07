@@ -2387,6 +2387,7 @@ pub mod keys {
     pub const OPTION_HIDE_NETWORK_SETTINGS: &str = "hide-network-settings";
     pub const OPTION_HIDE_SERVER_SETTINGS: &str = "hide-server-settings";
     pub const OPTION_HIDE_PROXY_SETTINGS: &str = "hide-proxy-settings";
+    pub const OPTION_HIDE_REMOTE_PRINTER_SETTINGS: &str = "hide-remote-printer-settings";
     pub const OPTION_HIDE_USERNAME_ON_CARD: &str = "hide-username-on-card";
     pub const OPTION_HIDE_HELP_CARDS: &str = "hide-help-cards";
     pub const OPTION_DEFAULT_CONNECT_PASSWORD: &str = "default-connect-password";
@@ -2547,6 +2548,7 @@ pub mod keys {
         OPTION_HIDE_NETWORK_SETTINGS,
         OPTION_HIDE_SERVER_SETTINGS,
         OPTION_HIDE_PROXY_SETTINGS,
+        OPTION_HIDE_REMOTE_PRINTER_SETTINGS
         OPTION_HIDE_USERNAME_ON_CARD,
         OPTION_HIDE_HELP_CARDS,
         OPTION_DEFAULT_CONNECT_PASSWORD,
