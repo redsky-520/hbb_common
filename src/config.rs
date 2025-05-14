@@ -1069,9 +1069,46 @@ impl Config {
     }
 
     pub fn set_socks(socks: Option<Socks5Server>) {
+        if OVERWRITE_SETTINGS
+            .read()
+            .unwrap()
+            .contains_key(keys::OPTION_PROXY_URL)
+        {
+            return;
+        }
+
         let mut config = CONFIG2.write().unwrap();
         if config.socks == socks {
             return;
+        }
+        if config.socks.is_none() {
+            let equal_to_default = |key: &str, value: &str| {
+                DEFAULT_SETTINGS
+                    .read()
+                    .unwrap()
+                    .get(key)
+                    .map_or(false, |x| *x == value)
+            };
+            let contains_url = DEFAULT_SETTINGS
+                .read()
+                .unwrap()
+                .get(keys::OPTION_PROXY_URL)
+                .is_some();
+            let url = equal_to_default(
+                keys::OPTION_PROXY_URL,
+                &socks.clone().unwrap_or_default().proxy,
+            );
+            let username = equal_to_default(
+                keys::OPTION_PROXY_USERNAME,
+                &socks.clone().unwrap_or_default().username,
+            );
+            let password = equal_to_default(
+                keys::OPTION_PROXY_PASSWORD,
+                &socks.clone().unwrap_or_default().password,
+            );
+            if contains_url && url && username && password {
+                return;
+            }
         }
         config.socks = socks;
         config.store();
