@@ -93,6 +93,8 @@ lazy_static::lazy_static! {
         ]);
 }
 
+const NUM_CHARS: &[char] = &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
 const CHARS: &[char] = &[
     '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
@@ -883,9 +885,17 @@ impl Config {
     }
 
     pub fn get_auto_password(length: usize) -> String {
+        Self::get_auto_password_with_chars(length, CHARS)
+    }
+
+    pub fn get_auto_numeric_password(length: usize) -> String {
+        Self::get_auto_password_with_chars(length, NUM_CHARS)
+    }
+
+    fn get_auto_password_with_chars(length: usize, chars: &[char]) -> String {
         let mut rng = rand::thread_rng();
         (0..length)
-            .map(|_| CHARS[rng.gen::<usize>() % CHARS.len()])
+            .map(|_| chars[rng.gen::<usize>() % chars.len()])
             .collect()
     }
 
@@ -2419,6 +2429,7 @@ pub mod keys {
     pub const OPTION_ENABLE_RECORD_SESSION: &str = "enable-record-session";
     pub const OPTION_ENABLE_BLOCK_INPUT: &str = "enable-block-input";
     pub const OPTION_ALLOW_REMOTE_CONFIG_MODIFICATION: &str = "allow-remote-config-modification";
+    pub const OPTION_ALLOW_NUMERNIC_ONE_TIME_PASSWORD: &str = "allow-numeric-one-time-password";
     pub const OPTION_ENABLE_LAN_DISCOVERY: &str = "enable-lan-discovery";
     pub const OPTION_DIRECT_SERVER: &str = "direct-server";
     pub const OPTION_DIRECT_ACCESS_PORT: &str = "direct-access-port";
@@ -2583,6 +2594,7 @@ pub mod keys {
         OPTION_ENABLE_RECORD_SESSION,
         OPTION_ENABLE_BLOCK_INPUT,
         OPTION_ALLOW_REMOTE_CONFIG_MODIFICATION,
+        OPTION_ALLOW_NUMERNIC_ONE_TIME_PASSWORD,
         OPTION_ENABLE_LAN_DISCOVERY,
         OPTION_DIRECT_SERVER,
         OPTION_DIRECT_ACCESS_PORT,

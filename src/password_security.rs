@@ -22,7 +22,12 @@ pub enum ApproveMode {
 
 // Should only be called in server
 pub fn update_temporary_password() {
-    *TEMPORARY_PASSWORD.write().unwrap() = Config::get_auto_password(temporary_password_length());
+    *TEMPORARY_PASSWORD.write().unwrap() =
+        if Config::get_bool_option(crate::config::keys::OPTION_ALLOW_NUMERNIC_ONE_TIME_PASSWORD) {
+            Config::get_auto_numeric_password(temporary_password_length())
+        } else {
+            Config::get_auto_password(temporary_password_length())
+        };
 }
 
 // Should only be called in server
