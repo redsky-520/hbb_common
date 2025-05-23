@@ -60,6 +60,7 @@ message RegisterPk {
   bytes uuid = 2;
   bytes pk = 3;
   string old_id = 4;
+  bool no_register_device = 5;
 }
 
 message RegisterPkResponse {
