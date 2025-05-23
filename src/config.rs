@@ -2459,6 +2459,7 @@ pub mod keys {
     pub const OPTION_ENABLE_TRUSTED_DEVICES: &str = "enable-trusted-devices";
     pub const OPTION_AV1_TEST: &str = "av1-test";
     pub const OPTION_TRACKPAD_SPEED: &str = "trackpad-speed";
+    pub const OPTION_REGISTER_DEVICE: &str = "register-device";
 
     // buildin options
     pub const OPTION_DISPLAY_NAME: &str = "display-name";
@@ -2647,6 +2648,7 @@ pub mod keys {
         OPTION_ONE_WAY_FILE_TRANSFER,
         OPTION_ALLOW_HTTPS_21114,
         OPTION_ALLOW_HOSTNAME_AS_ID,
+        OPTION_REGISTER_DEVICE,
     ];
 }
 
