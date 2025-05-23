@@ -951,6 +951,13 @@ impl Config {
         config.key_pair
     }
 
+    pub fn no_register_device() -> bool {
+        BUILTIN_SETTINGS.read().unwrap()
+            .get(keys::OPTION_REGISTER_DEVICE)
+            .map(|v| v == "N")
+            .unwrap_or(false)
+    }
+
     pub fn get_id() -> String {
         let mut id = CONFIG.read().unwrap().id.clone();
         if id.is_empty() {
