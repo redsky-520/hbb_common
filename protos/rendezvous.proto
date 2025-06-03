@@ -53,6 +53,7 @@ message PunchHoleSent {
   string relay_server = 3;
   NatType nat_type = 4;
   string version = 5;
+  bool is_udp = 6;
 }
 
 message RegisterPk {
@@ -94,6 +95,7 @@ message PunchHoleResponse {
   }
   string other_failure = 7;
   int32 feedback = 8;
+  bool is_udp = 9;
 }
 
 message ConfigUpdate {

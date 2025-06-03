@@ -61,6 +61,7 @@ pub mod websocket;
 pub mod stream;
 pub use stream::Stream;
 pub use whoami;
+pub mod kcp_stream;
 
 pub type SessionID = uuid::Uuid;
 
