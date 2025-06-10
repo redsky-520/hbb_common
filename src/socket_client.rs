@@ -6,8 +6,8 @@ use crate::{
     ResultType, Stream,
 };
 use anyhow::Context;
-use std::net::SocketAddr;
-use tokio::net::ToSocketAddrs;
+use std::{net::SocketAddr, sync::Arc};
+use tokio::net::{ToSocketAddrs, UdpSocket};
 use tokio_socks::{IntoTargetAddr, TargetAddr};
 
 #[inline]
@@ -205,6 +205,14 @@ async fn test_target(target: &str) -> ResultType<SocketAddr> {
         .await?
         .next()
         .context(format!("Failed to look up host for {target}"))
+}
+
+#[inline]
+pub async fn new_direct_udp_for(target: &str) -> ResultType<(Arc<UdpSocket>, SocketAddr)> {
+    let peer_addr = test_target(target).await?;
+    let local_addr = Config::get_any_listen_addr(peer_addr.is_ipv4());
+    let socket = UdpSocket::bind(local_addr).await?;
+    Ok((Arc::new(socket), peer_addr))
 }
 
 #[inline]

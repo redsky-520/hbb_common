@@ -23,12 +23,20 @@ message PunchHoleRequest {
   ConnType conn_type = 4;
   string token = 5;
   string version = 6;
+  int32 udp_port = 7;
+  bool force_relay = 8;
+  int32 upnp_port = 9;
+  bytes socket_addr_v6 = 10;
 }
 
 message PunchHole { 
   bytes socket_addr = 1;
   string relay_server = 2;
   NatType nat_type = 3;
+  int32 udp_port = 4;
+  bool force_relay = 5;
+  int32 upnp_port = 6;
+  bytes socket_addr_v6 = 7;
 }
 
 message TestNatRequest {
@@ -53,7 +61,8 @@ message PunchHoleSent {
   string relay_server = 3;
   NatType nat_type = 4;
   string version = 5;
-  bool is_udp = 6;
+  int32 upnp_port = 6;
+  bytes socket_addr_v6 = 7;
 }
 
 message RegisterPk {
@@ -96,6 +105,8 @@ message PunchHoleResponse {
   string other_failure = 7;
   int32 feedback = 8;
   bool is_udp = 9;
+  int32 upnp_port = 10;
+  bytes socket_addr_v6 = 11;
 }
 
 message ConfigUpdate {
@@ -125,6 +136,8 @@ message RelayResponse {
   string refuse_reason = 6;
   string version = 7;
   int32 feedback = 9;
+  bytes socket_addr_v6 = 10;
+  int32 upnp_port = 11;
 }
 
 message SoftwareUpdate { string url = 1; }
@@ -136,6 +149,7 @@ message SoftwareUpdate { string url = 1; }
 message FetchLocalAddr { 
   bytes socket_addr = 1; 
   string relay_server = 2;
+  bytes socket_addr_v6 = 3;
 }
 
 message LocalAddr {
@@ -144,6 +158,7 @@ message LocalAddr {
   string relay_server = 3;
   string id = 4;
   string version = 5;
+  bytes socket_addr_v6 = 6;
 }
 
 message PeerDiscovery {

@@ -22,16 +22,16 @@ use tokio_socks::IntoTargetAddr;
 use tokio_util::codec::Framed;
 
 pub trait TcpStreamTrait: AsyncRead + AsyncWrite + Unpin {}
-pub struct DynTcpStream(pub(crate) Box<dyn TcpStreamTrait + Send + Sync>);
+pub struct DynTcpStream(pub Box<dyn TcpStreamTrait + Send + Sync>);
 
 #[derive(Clone)]
 pub struct Encrypt(pub Key, pub u64, pub u64);
 
 pub struct FramedStream(
-    pub(crate) Framed<DynTcpStream, BytesCodec>,
-    pub(crate) SocketAddr,
-    pub(crate) Option<Encrypt>,
-    pub(crate) u64,
+    pub Framed<DynTcpStream, BytesCodec>,
+    pub SocketAddr,
+    pub Option<Encrypt>,
+    pub u64,
 );
 
 impl Deref for FramedStream {
