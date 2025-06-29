@@ -79,6 +79,7 @@ message LoginRequest {
     FileTransfer file_transfer = 7;
     PortForward port_forward = 8;
     ViewCamera view_camera = 15;
+    Terminal terminal = 16;
   }
   bool video_ack_required = 9;
   uint64 session_id = 10;
@@ -86,6 +87,12 @@ message LoginRequest {
   OSLogin os_login = 12;
   string my_platform = 13;
   bytes hwid = 14;
+}
+
+message Terminal {
+  // Empty message for terminal connection type
+  bool persistent = 1;  // Whether to create a persistent terminal session
+  string service_id = 2;  // Service ID for reconnecting to existing session
 }
 
 message Auth2FA {
@@ -97,6 +104,7 @@ message ChatMessage { string text = 1; }
 
 message Features {
   bool privacy_mode = 1;
+  bool terminal = 2;
 }
 
 message CodecAbility {
@@ -863,6 +871,65 @@ message ScreenshotResponse {
   bytes data = 3;
 }
 
+// Terminal messages - standalone feature like FileAction
+message OpenTerminal {
+  int32 terminal_id = 1;  // 0 for default terminal
+  uint32 rows = 2;
+  uint32 cols = 3;
+}
+
+message ResizeTerminal {
+  int32 terminal_id = 1;
+  uint32 rows = 2;
+  uint32 cols = 3;
+}
+
+message TerminalData {
+  int32 terminal_id = 1;
+  bytes data = 2;
+  bool compressed = 3;
+}
+
+message CloseTerminal {
+  int32 terminal_id = 1;
+}
+
+message TerminalAction {
+  oneof union {
+    OpenTerminal open = 1;
+    TerminalData data = 2;
+    ResizeTerminal resize = 3;
+    CloseTerminal close = 4;
+  }
+}
+
+message TerminalOpened {
+  int32 terminal_id = 1;
+  bool success = 2;
+  string message = 3;
+  uint32 pid = 4;
+  string service_id = 5;  // Service ID for persistent sessions
+}
+
+message TerminalClosed {
+  int32 terminal_id = 1;
+  int32 exit_code = 2;
+}
+
+message TerminalError {
+  int32 terminal_id = 1;
+  string message = 2;
+}
+
+message TerminalResponse {
+  oneof union {
+    TerminalOpened opened = 1;
+    TerminalData data = 2;
+    TerminalClosed closed = 3;
+    TerminalError error = 4;
+  }
+}
+
 message Message {
   oneof union {
     SignedId signed_id = 3;
@@ -893,5 +960,7 @@ message Message {
     MultiClipboards multi_clipboards = 28;
     ScreenshotRequest screenshot_request = 29;
     ScreenshotResponse screenshot_response= 30;
+    TerminalAction terminal_action = 31;
+    TerminalResponse terminal_response = 32;
   }
 }

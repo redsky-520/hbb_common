@@ -12,6 +12,7 @@ enum ConnType {
   PORT_FORWARD = 2;
   RDP = 3;
   VIEW_CAMERA = 4;
+  TERMINAL = 5;
 }
 
 message RegisterPeerResponse { bool request_pk = 2; }
