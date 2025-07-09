@@ -87,7 +87,7 @@ pub fn is_kde() -> bool {
 
 #[inline]
 pub fn is_gdm_user(username: &str) -> bool {
-    username == "gdm"
+    username == "gdm" || username == "sddm"
     // || username == "lightgdm"
 }
 
