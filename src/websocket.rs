@@ -30,8 +30,8 @@ pub struct WsFramedStream {
 impl WsFramedStream {
     pub async fn new<T: AsRef<str>>(
         url: T,
-        local_addr: Option<SocketAddr>,
-        proxy_conf: Option<&Socks5Server>,
+        _local_addr: Option<SocketAddr>,
+        _proxy_conf: Option<&Socks5Server>,
         ms_timeout: u64,
     ) -> ResultType<Self> {
         let url_str = url.as_ref();
