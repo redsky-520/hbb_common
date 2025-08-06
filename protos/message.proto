@@ -437,6 +437,7 @@ message FileTransferDigest {
   uint64 file_size = 4;
   bool is_upload = 5;
   bool is_identical = 6;
+  uint64 transferred_size = 7; // for resume transfer, indicates the size of the file already transferred
 }
 
 message FileTransferBlock {
