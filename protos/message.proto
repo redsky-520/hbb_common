@@ -437,7 +437,11 @@ message FileTransferDigest {
   uint64 file_size = 4;
   bool is_upload = 5;
   bool is_identical = 6;
-  uint64 transferred_size = 7; // for resume transfer, indicates the size of the file already transferred
+  uint64 transferred_size = 7; // For resume. Indicates the size of the file already transferred
+  bool is_resume = 8;          // For resume. Indicates if the transfer is a resume.
+                               // `is_resume` can let the controlled side know whether to check the `.digest` file.
+                               // When `is_resume` is false, `.digest` exists, the same file does not exist,
+                               // the controlled side should not check `.digest`, it should confirm with a new transfer request.
 }
 
 message FileTransferBlock {
