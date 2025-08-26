@@ -693,6 +693,7 @@ message OptionMessage {
   BoolOption follow_remote_window = 16;
   BoolOption disable_camera = 17;
   BoolOption terminal_persistent = 18;
+  BoolOption show_my_cursor = 19;
 }
 
 message TestDelay {
