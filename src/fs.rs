@@ -612,6 +612,19 @@ impl TransferJob {
         }
     }
 
+    #[inline]
+    pub fn set_finished_size_on_resume(&mut self) {
+        if self.is_resume && self.file_num > 0 {
+            let finished_size: u64 = self
+                .files
+                .iter()
+                .take(self.file_num as usize)
+                .map(|file| file.size)
+                .sum();
+            self.finished_size = finished_size;
+        }
+    }
+
     pub async fn write(&mut self, block: FileTransferBlock) -> ResultType<()> {
         if block.id != self.id {
             bail!("Wrong id");
