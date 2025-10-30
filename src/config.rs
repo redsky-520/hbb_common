@@ -5,7 +5,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
-    sync::{Mutex, RwLock},
+    sync::{atomic::AtomicBool, Mutex, RwLock},
     time::{Duration, Instant, SystemTime},
 };
 
@@ -70,6 +70,11 @@ lazy_static::lazy_static! {
     pub static ref OVERWRITE_LOCAL_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
+}
+
+#[cfg(target_os = "android")]
+lazy_static::lazy_static! {
+    pub static ref ANDROID_RUSTLS_PLATFORM_VERIFIER_INITIALIZED: AtomicBool = AtomicBool::new(false);
 }
 
 lazy_static::lazy_static! {

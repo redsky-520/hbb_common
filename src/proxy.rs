@@ -56,7 +56,6 @@ const MAXIMUM_RESPONSE_HEADERS: usize = 16;
 const DEFINE_TIME_OUT: u64 = 600;
 
 pub trait IntoUrl {
-
     // Besides parsing as a valid `Url`, the `Url` must be a valid
     // `http::Uri`, in that it makes sense to use in a network request.
     fn into_url(self) -> Result<Url, ProxyError>;
@@ -456,14 +455,14 @@ impl Proxy {
         T: IntoTargetAddr<'a>,
     {
         use std::convert::TryFrom;
-        let verifier = rustls_platform_verifier::tls_config();
-        let url_domain = self.intercept.get_domain()?;
 
+        let url_domain = self.intercept.get_domain()?;
         let domain = rustls_pki_types::ServerName::try_from(url_domain.as_str())
             .map_err(|e| ProxyError::AddressResolutionFailed(e.to_string()))?
             .to_owned();
-
-        let tls_connector = TlsConnector::from(std::sync::Arc::new(verifier));
+        let client_config = crate::verifier::client_config()
+            .map_err(|e| ProxyError::IoError(std::io::Error::other(e)))?;
+        let tls_connector = TlsConnector::from(std::sync::Arc::new(client_config));
         let stream = tls_connector.connect(domain, io).await?;
         self.http_connect(stream, target).await
     }

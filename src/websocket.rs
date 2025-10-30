@@ -43,8 +43,42 @@ impl WsFramedStream {
             .into_client_request()
             .map_err(|e| Error::new(ErrorKind::Other, e))?;
 
-        let (stream, _) =
-            timeout(Duration::from_millis(ms_timeout), connect_async(request)).await??;
+        let stream;
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        {
+            let is_wss = url_str.starts_with("wss://");
+            if is_wss {
+                use std::sync::Arc;
+                use tokio_tungstenite::{connect_async_tls_with_config, Connector};
+
+                let connector = match crate::verifier::client_config() {
+                    Ok(client_config) => Some(Connector::Rustls(Arc::new(client_config))),
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to get client config: {:?}, fallback to default connector",
+                            e
+                        );
+                        None
+                    }
+                };
+                let (s, _) = timeout(
+                    Duration::from_millis(ms_timeout),
+                    connect_async_tls_with_config(request, None, false, connector),
+                )
+                .await??;
+                stream = s;
+            } else {
+                let (s, _) =
+                    timeout(Duration::from_millis(ms_timeout), connect_async(request)).await??;
+                stream = s;
+            }
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        {
+            let (s, _) =
+                timeout(Duration::from_millis(ms_timeout), connect_async(request)).await??;
+            stream = s;
+        }
 
         let addr = match stream.get_ref() {
             MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
