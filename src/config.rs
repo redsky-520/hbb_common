@@ -5,7 +5,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
-    sync::{atomic::AtomicBool, Mutex, RwLock},
+    sync::{Mutex, RwLock},
     time::{Duration, Instant, SystemTime},
 };
 
@@ -74,7 +74,7 @@ lazy_static::lazy_static! {
 
 #[cfg(target_os = "android")]
 lazy_static::lazy_static! {
-    pub static ref ANDROID_RUSTLS_PLATFORM_VERIFIER_INITIALIZED: AtomicBool = AtomicBool::new(false);
+    pub static ref ANDROID_RUSTLS_PLATFORM_VERIFIER_INITIALIZED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 }
 
 lazy_static::lazy_static! {
