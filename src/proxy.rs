@@ -127,6 +127,14 @@ impl Auth {
         let authorization = format!("{}:{}", &self.user_name, &self.password);
         general_purpose::STANDARD.encode(authorization.as_bytes())
     }
+
+    pub fn username(&self) -> &str {
+        &self.user_name
+    }
+
+    pub fn password(&self) -> &str {
+        &self.password
+    }
 }
 
 #[derive(Clone)]
