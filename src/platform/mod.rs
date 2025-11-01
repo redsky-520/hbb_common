@@ -62,7 +62,7 @@ extern "C" fn breakdown_signal_handler(sig: i32) {
         .ok();
     }
     unsafe {
-        if let Some(callback) = &GLOBAL_CALLBACK {
+        if let Some(callback) = &raw const GLOBAL_CALLBACK {
             callback()
         }
     }
