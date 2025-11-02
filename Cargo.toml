@@ -59,7 +59,7 @@ tungstenite = { version = "0.26", features = ["native-tls", "rustls-tls-native-r
 rustls-platform-verifier = "0.6"
 rustls-pki-types = "1.11"
 rustls-native-certs = "0.8"
-webpki-roots = "1.0"
+webpki-roots = "1.0.3"
 async-recursion = "1.1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
