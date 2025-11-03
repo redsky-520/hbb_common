@@ -73,7 +73,7 @@ impl WsFramedStream {
 
         let tls_type = get_cached_tls_type(url);
         let is_tls_type_cached = tls_type.is_some();
-        let tls_type = tls_type.unwrap_or(TlsType::NativeTls);
+        let tls_type = tls_type.unwrap_or(TlsType::Rustls);
         let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(&url);
         Self::try_connect(
             url,
@@ -113,9 +113,9 @@ impl WsFramedStream {
                 Ok(ws_stream)
             }
             Err(e) => match (tls_type, is_tls_type_cached, danger_accept_invalid_cert) {
-                (TlsType::NativeTls, _, None) => {
+                (TlsType::Rustls, _, None) => {
                     log::warn!(
-                            "WebSocket connection with native-tls failed, try accept invalid certs: {}, {:?}",
+                            "WebSocket connection with rustls-tls failed, try accept invalid certs: {}, {:?}",
                             url,
                             e
                         );
@@ -129,25 +129,25 @@ impl WsFramedStream {
                     )
                     .await
                 }
-                (TlsType::NativeTls, false, Some(_)) => {
+                (TlsType::Rustls, false, Some(_)) => {
                     log::warn!(
-                        "WebSocket connection with native-tls failed, try rustls: {}, {:?}",
+                        "WebSocket connection with rustls-tls failed, try native-tls: {}, {:?}",
                         url,
                         e
                     );
                     Self::try_connect(
                         url,
                         ms_timeout,
-                        TlsType::Rustls,
+                        TlsType::NativeTls,
                         is_tls_type_cached,
                         original_danger_accept_invalid_certs,
                         original_danger_accept_invalid_certs,
                     )
                     .await
                 }
-                (TlsType::Rustls, _, None) => {
+                (TlsType::NativeTls, _, None) => {
                     log::warn!(
-                            "WebSocket connection with rustls failed, try accept invalid certs: {}, {:?}",
+                            "WebSocket connection with native-tls failed, try accept invalid certs: {}, {:?}",
                             url,
                             e
                         );

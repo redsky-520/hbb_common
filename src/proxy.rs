@@ -411,9 +411,9 @@ impl Proxy {
                 let url = format!("https://{}", self.intercept.get_host_and_port()?);
                 let tls_type = get_cached_tls_type(&url);
                 let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(&url);
-                let stream = match tls_type.unwrap_or(TlsType::NativeTls) {
-                    TlsType::NativeTls => {
-                        self.https_connect_nativetls_wrap_danger(
+                let stream = match tls_type.unwrap_or(TlsType::Rustls) {
+                    TlsType::Rustls => {
+                        self.https_connect_rustls_wrap_danger(
                             &url,
                             local,
                             proxy,
@@ -425,8 +425,8 @@ impl Proxy {
                         )
                         .await?
                     }
-                    TlsType::Rustls => {
-                        self.https_connect_rustls_wrap_danger(
+                    TlsType::NativeTls => {
+                        self.https_connect_nativetls_wrap_danger(
                             &url,
                             local,
                             proxy,
@@ -477,77 +477,30 @@ impl Proxy {
         };
     }
 
-    #[async_recursion]
     async fn https_connect_nativetls_wrap_danger<'a>(
         &self,
         url: &str,
         local: SocketAddr,
         proxy: SocketAddr,
-        stream: Option<tokio::net::TcpStream>,
         target_addr: &TargetAddr<'a>,
-        is_tls_type_cached: bool,
         danger_accept_invalid_cert: Option<bool>,
-        origin_danger_accept_invalid_cert: Option<bool>,
     ) -> ResultType<DynTcpStream> {
-        let stream = stream.unwrap_or(self.new_stream(local, proxy).await?);
-        match super::timeout(
+        let stream = self.new_stream(local, proxy).await?;
+        let s = super::timeout(
             self.ms_timeout,
             self.https_connect_nativetls(
                 stream,
-                target_addr,
+                &target_addr,
                 danger_accept_invalid_cert.unwrap_or(false),
             ),
         )
-        .await?
-        {
-            Ok(s) => {
-                upsert_tls_cache(
-                    &url,
-                    TlsType::NativeTls,
-                    danger_accept_invalid_cert.unwrap_or(false),
-                );
-                Ok(DynTcpStream(Box::new(s)))
-            }
-            Err(ProxyError::NativeTlsError(e)) => {
-                let s = if danger_accept_invalid_cert.is_none() {
-                    log::warn!(
-                        "Falling back to native-tls (accept invalid cert) for HTTPS proxy server."
-                    );
-                    self.https_connect_nativetls_wrap_danger(
-                        &url,
-                        local,
-                        proxy,
-                        None,
-                        target_addr,
-                        is_tls_type_cached,
-                        Some(true),
-                        origin_danger_accept_invalid_cert,
-                    )
-                    .await?
-                } else if !is_tls_type_cached {
-                    log::warn!("Falling back to rustls for HTTPS proxy server.");
-                    self.https_connect_rustls_wrap_danger(
-                        &url,
-                        local,
-                        proxy,
-                        &target_addr,
-                        origin_danger_accept_invalid_cert,
-                    )
-                    .await?
-                } else {
-                    log::error!(
-                        "Failed to connect to HTTPS proxy server with native-tls: {:?}.",
-                        e
-                    );
-                    bail!(e)
-                };
-                Ok(s)
-            }
-            Err(e) => {
-                log::error!("Failed to connect to HTTPS proxy server: {:?}.", e);
-                bail!(e)
-            }
-        }
+        .await??;
+        upsert_tls_cache(
+            url,
+            TlsType::NativeTls,
+            danger_accept_invalid_cert.unwrap_or(false),
+        );
+        Ok(DynTcpStream(Box::new(s)))
     }
 
     pub async fn https_connect_nativetls<'a, Input>(
@@ -570,30 +523,86 @@ impl Proxy {
         self.http_connect(stream, target_addr).await
     }
 
+    #[async_recursion]
     async fn https_connect_rustls_wrap_danger<'a>(
         &self,
         url: &str,
         local: SocketAddr,
         proxy: SocketAddr,
+        stream: Option<tokio::net::TcpStream>,
         target_addr: &TargetAddr<'a>,
+        is_tls_type_cached: bool,
         danger_accept_invalid_cert: Option<bool>,
+        origin_danger_accept_invalid_cert: Option<bool>,
     ) -> ResultType<DynTcpStream> {
-        let stream = self.new_stream(local, proxy).await?;
-        let s = super::timeout(
+        let stream = stream.unwrap_or(self.new_stream(local, proxy).await?);
+        match super::timeout(
             self.ms_timeout,
             self.https_connect_rustls(
                 stream,
-                &target_addr,
+                target_addr,
                 danger_accept_invalid_cert.unwrap_or(false),
             ),
         )
-        .await??;
-        upsert_tls_cache(
-            url,
-            TlsType::Rustls,
-            danger_accept_invalid_cert.unwrap_or(false),
-        );
-        Ok(DynTcpStream(Box::new(s)))
+        .await?
+        {
+            Ok(s) => {
+                upsert_tls_cache(
+                    &url,
+                    TlsType::Rustls,
+                    danger_accept_invalid_cert.unwrap_or(false),
+                );
+                Ok(DynTcpStream(Box::new(s)))
+            }
+            Err(e) => {
+                // NOTE: Maybe it's better to check if the error is related to TLS here. (ProxyError::IoError(e), or ProxyError::NativeTlsError(e))
+                // But we can only get the error when the TLS protocol is TLSv1.1.
+                // The error message of the following is unclear:
+                // https://github.com/rustdesk/rustdesk-server-pro/issues/189#issuecomment-1895701480
+                // So we just try to fallback unconditionally here.
+                //
+                // If the protocol is TLS 1.1, the error is:
+                // 1. "IO Error: received fatal alert: ProtocolVersion"
+                // 2. "IO Error: An existing connection was forcibly closed by the remote host. (os error 10054)" on Windows sometimes.
+                //
+                // If the cert verification fails, the error is:
+                // "IO Error: invalid peer certificate: UnknownIssuer"
+
+                let s = if danger_accept_invalid_cert.is_none() {
+                    log::warn!(
+                        "Falling back to rustls-tls (accept invalid cert) for HTTPS proxy server."
+                    );
+                    self.https_connect_rustls_wrap_danger(
+                        &url,
+                        local,
+                        proxy,
+                        None,
+                        target_addr,
+                        is_tls_type_cached,
+                        Some(true),
+                        origin_danger_accept_invalid_cert,
+                    )
+                    .await?
+                } else if !is_tls_type_cached {
+                    log::warn!("Falling back to native-tls for HTTPS proxy server.");
+                    self.https_connect_nativetls_wrap_danger(
+                        &url,
+                        local,
+                        proxy,
+                        &target_addr,
+                        origin_danger_accept_invalid_cert,
+                    )
+                    .await?
+                } else {
+                    log::error!(
+                        "Failed to connect to HTTPS proxy server with native-tls: {:?}.",
+                        e
+                    );
+                    bail!(e)
+                };
+                Ok(s)
+            }
+        }
     }
 
     pub async fn https_connect_rustls<'a, Input>(
