@@ -3,6 +3,7 @@ use crate::{
     tcp::FramedStream,
     udp::FramedSocket,
     websocket::{self, check_ws, is_ws_endpoint},
+    webrtc::{self, is_webrtc_endpoint},
     ResultType, Stream,
 };
 use anyhow::Context;
@@ -129,6 +130,11 @@ pub async fn connect_tcp<
     target: T,
     ms_timeout: u64,
 ) -> ResultType<crate::Stream> {
+    if is_webrtc_endpoint(&target.to_string()) {
+        return Ok(Stream::WebRTC(
+            webrtc::WebRTCStream::new(&target.to_string(), ms_timeout).await?,
+        ));
+    }
     let target_str = check_ws(&target.to_string());
     if is_ws_endpoint(&target_str) {
         return Ok(Stream::WebSocket(

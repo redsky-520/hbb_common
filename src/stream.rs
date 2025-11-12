@@ -1,10 +1,11 @@
-use crate::{config, tcp, websocket, ResultType};
+use crate::{config, tcp, websocket, webrtc, ResultType};
 use sodiumoxide::crypto::secretbox::Key;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
 
 // support Websocket and tcp.
 pub enum Stream {
+    WebRTC(webrtc::WebRTCStream),
     WebSocket(websocket::WsFramedStream),
     Tcp(tcp::FramedStream),
 }
@@ -13,6 +14,7 @@ impl Stream {
     #[inline]
     pub fn set_send_timeout(&mut self, ms: u64) {
         match self {
+            Stream::WebRTC(s) => s.set_send_timeout(ms),
             Stream::WebSocket(s) => s.set_send_timeout(ms),
             Stream::Tcp(s) => s.set_send_timeout(ms),
         }
@@ -21,6 +23,7 @@ impl Stream {
     #[inline]
     pub fn set_raw(&mut self) {
         match self {
+            Stream::WebRTC(s) => s.set_raw(),
             Stream::WebSocket(s) => s.set_raw(),
             Stream::Tcp(s) => s.set_raw(),
         }
@@ -29,6 +32,7 @@ impl Stream {
     #[inline]
     pub async fn send_bytes(&mut self, bytes: bytes::Bytes) -> ResultType<()> {
         match self {
+            Stream::WebRTC(s) => s.send_bytes(bytes).await,
             Stream::WebSocket(s) => s.send_bytes(bytes).await,
             Stream::Tcp(s) => s.send_bytes(bytes).await,
         }
@@ -37,6 +41,7 @@ impl Stream {
     #[inline]
     pub async fn send_raw(&mut self, bytes: Vec<u8>) -> ResultType<()> {
         match self {
+            Stream::WebRTC(s) => s.send_raw(bytes).await,
             Stream::WebSocket(s) => s.send_raw(bytes).await,
             Stream::Tcp(s) => s.send_raw(bytes).await,
         }
@@ -45,6 +50,7 @@ impl Stream {
     #[inline]
     pub fn set_key(&mut self, key: Key) {
         match self {
+            Stream::WebRTC(s) => s.set_key(key),
             Stream::WebSocket(s) => s.set_key(key),
             Stream::Tcp(s) => s.set_key(key),
         }
@@ -53,6 +59,7 @@ impl Stream {
     #[inline]
     pub fn is_secured(&self) -> bool {
         match self {
+            Stream::WebRTC(s) => s.is_secured(),
             Stream::WebSocket(s) => s.is_secured(),
             Stream::Tcp(s) => s.is_secured(),
         }
@@ -64,6 +71,7 @@ impl Stream {
         timeout: u64,
     ) -> Option<Result<bytes::BytesMut, std::io::Error>> {
         match self {
+            Stream::WebRTC(s) => s.next_timeout(timeout).await,
             Stream::WebSocket(s) => s.next_timeout(timeout).await,
             Stream::Tcp(s) => s.next_timeout(timeout).await,
         }
@@ -87,6 +95,7 @@ impl Stream {
     #[inline]
     pub async fn send(&mut self, msg: &impl protobuf::Message) -> ResultType<()> {
         match self {
+            Self::WebRTC(s) => s.send(msg).await,
             Self::WebSocket(ws) => ws.send(msg).await,
             Self::Tcp(tcp) => tcp.send(msg).await,
         }
@@ -96,6 +105,7 @@ impl Stream {
     #[inline]
     pub async fn next(&mut self) -> Option<Result<bytes::BytesMut, std::io::Error>> {
         match self {
+            Self::WebRTC(s) => s.next().await,
             Self::WebSocket(ws) => ws.next().await,
             Self::Tcp(tcp) => tcp.next().await,
         }
@@ -104,6 +114,7 @@ impl Stream {
     #[inline]
     pub fn local_addr(&self) -> SocketAddr {
         match self {
+            Self::WebRTC(s) => s.local_addr(),
             Self::WebSocket(ws) => ws.local_addr(),
             Self::Tcp(tcp) => tcp.local_addr(),
         }
