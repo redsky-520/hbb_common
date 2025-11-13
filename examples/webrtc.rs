@@ -102,13 +102,15 @@ async fn read_loop(mut stream: hbb_common::Stream) -> Result<()> {
             println!("WebRTC stream closed; Exit the read_loop");
             return Ok(());
         };
-        if res.is_err() {
-            println!("WebRTC stream read error: {}; Exit the read_loop", res.err().unwrap());
-            return Ok(());
+        match res {
+            Err(e) => {
+                println!("WebRTC stream read error: {}; Exit the read_loop", e);
+                return Ok(());
+            }
+            Ok(data) => {
+                println!("Message from stream: {}", String::from_utf8(data.to_vec())?);
+            }
         }
-        println!("Message from stream: {}",
-            String::from_utf8(res.unwrap().to_vec())?
-        );
     }
 }
 

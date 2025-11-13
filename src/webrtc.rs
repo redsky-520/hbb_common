@@ -105,7 +105,19 @@ impl WebRTCStream {
         let contains = lock.contains_key(&key);
         if contains {
             log::debug!("Start webrtc with cached peer");
-            return Ok(lock.get(&key).unwrap().clone());
+            return Ok(lock[&key].clone());
+        }
+        // ...existing code...
+            Self::get_remote_offer(remote_endpoint)?
+        };
+
+        let key = remote_offer.clone();
+        let mut lock = SESSIONS.lock().await;
+        if let Some(cached_stream) = lock.get(&key) {
+            if !key.is_empty() {
+                log::debug!("Start webrtc with cached peer");
+                return Ok(cached_stream.clone());
+            }
         }
 
         // Create a SettingEngine and enable Detach
