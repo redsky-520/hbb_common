@@ -100,17 +100,6 @@ impl WebRTCStream {
             Self::get_remote_offer(remote_endpoint)?
         };
 
-        let mut key = remote_offer.clone();
-        let mut lock = SESSIONS.lock().await;
-        let contains = lock.contains_key(&key);
-        if contains {
-            log::debug!("Start webrtc with cached peer");
-            return Ok(lock[&key].clone());
-        }
-        // ...existing code...
-            Self::get_remote_offer(remote_endpoint)?
-        };
-
         let key = remote_offer.clone();
         let mut lock = SESSIONS.lock().await;
         if let Some(cached_stream) = lock.get(&key) {
