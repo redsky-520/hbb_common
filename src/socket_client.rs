@@ -3,9 +3,10 @@ use crate::{
     tcp::FramedStream,
     udp::FramedSocket,
     websocket::{self, check_ws, is_ws_endpoint},
-    webrtc::{self, is_webrtc_endpoint},
     ResultType, Stream,
 };
+#[cfg(feature = "webrtc")]
+use crate::webrtc::{self, is_webrtc_endpoint};
 use anyhow::Context;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::{ToSocketAddrs, UdpSocket};
@@ -130,6 +131,7 @@ pub async fn connect_tcp<
     target: T,
     ms_timeout: u64,
 ) -> ResultType<crate::Stream> {
+    #[cfg(feature = "webrtc")]
     if is_webrtc_endpoint(&target.to_string()) {
         return Ok(Stream::WebRTC(
             webrtc::WebRTCStream::new(&target.to_string(), ms_timeout).await?,
