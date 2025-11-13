@@ -1,5 +1,12 @@
 extern crate hbb_common;
 
+#[cfg(feature = "webrtc")]
+use hbb_common::webrtc::WebRTCStream;
+#[cfg(not(feature = "webrtc"))]
+mod webrtc_dummy;
+#[cfg(not(feature = "webrtc"))]
+use crate::webrtc_dummy::WebRTCStream;
+
 use std::io::Write;
 use bytes::Bytes;
 
@@ -11,6 +18,11 @@ use webrtc::peer_connection::math_rand_alpha;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    #[cfg(not(feature = "webrtc"))]
+    if true {
+        println!("The webrtc feature is not enabled. Please enable the webrtc feature to run this example.");
+        return Ok(());
+    }
     let app = Command::new("webrtc-stream")
         .about("An example of webrtc stream using hbb_common and webrtc-rs")
         .arg(
@@ -54,7 +66,7 @@ async fn main() -> Result<()> {
         "".to_string()
     };
 
-    let webrtc_stream = hbb_common::webrtc::WebRTCStream::new(&remote_endpoint, 30000).await?;
+    let webrtc_stream = WebRTCStream::new(&remote_endpoint, 30000).await?;
     // Print the offer to be sent to the other peer
     let local_endpoint = webrtc_stream.get_local_endpoint().await?;
 
@@ -75,12 +87,12 @@ async fn main() -> Result<()> {
         println!("Copy local endpoint and paste to the other peer: \n{}", local_endpoint);
     }
 
-    let s1 = hbb_common::Stream::WebRTC(webrtc_stream.clone());
+    let s1 = webrtc_stream.clone();
     tokio::spawn(async move {
         let _ = read_loop(s1).await;
     });
 
-    let s2 = hbb_common::Stream::WebRTC(webrtc_stream.clone());
+    let s2 = webrtc_stream.clone();
     tokio::spawn(async move {
         let _ = write_loop(s2).await;
     });
@@ -96,7 +108,7 @@ async fn main() -> Result<()> {
 }
 
 // read_loop shows how to read from the datachannel directly
-async fn read_loop(mut stream: hbb_common::Stream) -> Result<()> {
+async fn read_loop(mut stream: WebRTCStream) -> Result<()> {
     loop {
         let Some(res) = stream.next().await else {
             println!("WebRTC stream closed; Exit the read_loop");
@@ -115,7 +127,7 @@ async fn read_loop(mut stream: hbb_common::Stream) -> Result<()> {
 }
 
 // write_loop shows how to write to the webrtc stream directly
-async fn write_loop(mut stream: hbb_common::Stream) -> Result<()> {
+async fn write_loop(mut stream: WebRTCStream) -> Result<()> {
     let mut result = Result::<()>::Ok(());
     while result.is_ok() {
         let timeout = tokio::time::sleep(Duration::from_secs(5));

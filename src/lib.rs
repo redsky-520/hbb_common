@@ -61,10 +61,6 @@ pub mod stream;
 pub mod websocket;
 #[cfg(feature = "webrtc")]
 pub mod webrtc;
-#[cfg(not(feature = "webrtc"))]
-pub mod webrtc_dummy;
-#[cfg(not(feature = "webrtc"))]
-pub use webrtc_dummy as webrtc;
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub use rustls_platform_verifier;
 pub use stream::Stream;
