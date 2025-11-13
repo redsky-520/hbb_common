@@ -90,11 +90,15 @@ pub const LINK_DOCS_HOME: &str = "https://rustdesk.com/docs/en/";
 pub const LINK_DOCS_X11_REQUIRED: &str = "https://rustdesk.com/docs/en/manual/linux/#x11-required";
 pub const LINK_HEADLESS_LINUX_SUPPORT: &str =
     "https://github.com/rustdesk/rustdesk/wiki/Headless-Linux-Support";
+pub const LINK_KDE_PLASMA_WAYLAND_SELECT_ALL_DISPLAYS: &str =
+    "https://github.com/rustdesk/rustdesk/discussions/13468";
+
 lazy_static::lazy_static! {
     pub static ref HELPER_URL: HashMap<&'static str, &'static str> = HashMap::from([
         ("rustdesk docs home", LINK_DOCS_HOME),
         ("rustdesk docs x11-required", LINK_DOCS_X11_REQUIRED),
         ("rustdesk x11 headless", LINK_HEADLESS_LINUX_SUPPORT),
+        ("rustdesk discussion Plasma Wayland all displays", LINK_KDE_PLASMA_WAYLAND_SELECT_ALL_DISPLAYS),
         ]);
 }
 
@@ -2553,6 +2557,7 @@ pub mod keys {
     // So `OPTION_SHOW_VIRTUAL_MOUSE` should also be set if `OPTION_SHOW_VIRTUAL_JOYSTICK` is set.
     pub const OPTION_SHOW_VIRTUAL_JOYSTICK: &str = "show-virtual-joystick";
     pub const OPTION_ENABLE_FLUTTER_HTTP_ON_RUST: &str = "enable-flutter-http-on-rust";
+    pub const OPTION_ALLOW_ASK_FOR_NOTE: &str = "allow-ask-for-note";
 
     // built-in options
     pub const OPTION_DISPLAY_NAME: &str = "display-name";
@@ -2688,6 +2693,7 @@ pub mod keys {
         OPTION_SHOW_VIRTUAL_MOUSE,
         OPTION_SHOW_VIRTUAL_JOYSTICK,
         OPTION_ENABLE_FLUTTER_HTTP_ON_RUST,
+        OPTION_ALLOW_ASK_FOR_NOTE,
     ];
     // DEFAULT_SETTINGS, OVERWRITE_SETTINGS
     pub const KEYS_SETTINGS: &[&str] = &[
