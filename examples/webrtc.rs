@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
                     record.args()
                 )
             })
-            .filter(None, log::LevelFilter::Debug)
+            .filter(Some("hbb_common"), log::LevelFilter::Debug)
             .init();
     }
 
@@ -56,17 +56,23 @@ async fn main() -> Result<()> {
 
     let webrtc_stream = hbb_common::webrtc::WebRTCStream::new(&remote_endpoint, 30000).await?;
     // Print the offer to be sent to the other peer
-    webrtc_stream.get_local_endpoint().await;
+    let local_endpoint = webrtc_stream.get_local_endpoint().await?;
 
     if remote_endpoint.is_empty() {
+        println!();
         // Wait for the answer to be pasted
-        println!("Wait for the answer to be pasted");
+        println!(
+            "Start new terminal run: \n{} \ncopy remote endpoint and paste here",
+            format!("cargo r --example webrtc -- --offer {}", local_endpoint)
+        );
         // readline blocking
         let line = std::io::stdin()
             .lines()
             .next()
             .ok_or_else(|| anyhow::anyhow!("No input received"))??;
         webrtc_stream.set_remote_endpoint(&line).await?;
+    } else {
+        println!("Copy local endpoint and paste to the other peer: \n{}", local_endpoint);
     }
 
     let s1 = hbb_common::Stream::WebRTC(webrtc_stream.clone());
@@ -93,16 +99,20 @@ async fn main() -> Result<()> {
 async fn read_loop(mut stream: hbb_common::Stream) -> Result<()> {
     loop {
         let Some(res) = stream.next().await else {
-            println!("Datachannel closed; Exit the read_loop");
+            println!("WebRTC stream closed; Exit the read_loop");
             return Ok(());
         };
-        println!("Message from DataChannel: {}",
+        if res.is_err() {
+            println!("WebRTC stream read error: {}; Exit the read_loop", res.err().unwrap());
+            return Ok(());
+        }
+        println!("Message from stream: {}",
             String::from_utf8(res.unwrap().to_vec())?
         );
     }
 }
 
-// write_loop shows how to write to the datachannel directly
+// write_loop shows how to write to the webrtc stream directly
 async fn write_loop(mut stream: hbb_common::Stream) -> Result<()> {
     let mut result = Result::<()>::Ok(());
     while result.is_ok() {
@@ -112,12 +122,12 @@ async fn write_loop(mut stream: hbb_common::Stream) -> Result<()> {
         tokio::select! {
             _ = timeout.as_mut() =>{
                 let message = math_rand_alpha(15);
-                println!("Sending '{message}'");
-                result = stream.send_bytes(Bytes::from(message)).await;
+                result = stream.send_bytes(Bytes::from(message.clone())).await;
+                println!("Sent '{message}' {}", result.is_ok());
             }
         };
     }
-    println!("Datachannel write not ok; Exit the write_loop");
+    println!("WebRTC stream write failed; Exit the write_loop");
 
     Ok(())
 }
