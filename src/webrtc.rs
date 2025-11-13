@@ -100,7 +100,7 @@ impl WebRTCStream {
             Self::get_remote_offer(remote_endpoint)?
         };
 
-        let key = remote_offer.clone();
+        let mut key = remote_offer.clone();
         let mut lock = SESSIONS.lock().await;
         if let Some(cached_stream) = lock.get(&key) {
             if !key.is_empty() {

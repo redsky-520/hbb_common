@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
         // Wait for the answer to be pasted
         println!(
             "Start new terminal run: \n{} \ncopy remote endpoint and paste here",
-            format!("cargo r --example webrtc -- --offer {}", local_endpoint)
+            format!("cargo r --features webrtc --example webrtc -- --offer {}", local_endpoint)
         );
         // readline blocking
         let line = std::io::stdin()
