@@ -12,17 +12,12 @@ pub struct WebRTCStream {
 
 impl Clone for WebRTCStream {
     fn clone(&self) -> Self {
-        WebRTCStream {
-        }
+        WebRTCStream {}
     }
 }
 
 impl WebRTCStream {
-
-    pub async fn new(
-        _: &str,
-        _: u64,
-    ) -> ResultType<Self> {
+    pub async fn new(_: &str, _: u64) -> ResultType<Self> {
         Ok(Self {})
     }
 
@@ -46,3 +41,5 @@ impl WebRTCStream {
         None
     }
 }
+
+fn main() {}
