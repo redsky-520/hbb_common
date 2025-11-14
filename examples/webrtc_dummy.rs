@@ -42,4 +42,4 @@ impl WebRTCStream {
     }
 }
 
-fn main() {}
+fn _main() {}

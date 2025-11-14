@@ -20,7 +20,10 @@ use webrtc::peer_connection::math_rand_alpha;
 async fn main() -> Result<()> {
     #[cfg(not(feature = "webrtc"))]
     if true {
-        println!("The webrtc feature is not enabled. Please enable the webrtc feature to run this example.");
+        println!(
+            "The webrtc feature is not enabled. \
+            Please enable the webrtc feature to run this example."
+        );
         return Ok(());
     }
     let app = Command::new("webrtc-stream")

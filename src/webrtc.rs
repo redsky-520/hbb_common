@@ -218,8 +218,8 @@ impl WebRTCStream {
                         log::debug!("WebRTC session stream closed");
 
                         let mut lock = SESSIONS.lock().await;
-                        match Self::get_key_for_peer(&pc_for_close2, start_local_offer).await.ok() {
-                            Some(k) => {
+                        match Self::get_key_for_peer(&pc_for_close2, start_local_offer).await {
+                            Ok(k) => {
                                 lock.remove(&k);
                                 log::debug!(
                                     "WebRTC session removed key from cache: {} current len: {}",
@@ -227,7 +227,7 @@ impl WebRTCStream {
                                     lock.len()
                                 );
                             }
-                            None => return,
+                            Err(_e) => {}
                         }
                     }
                     _ => {}
@@ -421,7 +421,8 @@ mod tests {
             ""
         );
 
-        sdp_str = "v=0
+        sdp_str = "\
+v=0
 o=- 7400546379179479477 208696200 IN IP4 0.0.0.0
 s=-
 t=0 0
@@ -443,7 +444,8 @@ a=ice-pwd:BtIqlWHfwhsJdFiBROeLuEbNmYfHxRfT".to_owned();
             "sha-256 97:52:D6:1F:1E:87:6C:DA:B8:21:95:64:A5:85:89:FA:02:71:C7:4D:B3:FD:25:92:40:FB:6B:65:24:3C:79:88"
         );
 
-        sdp_str = "v=0
+        sdp_str = "\
+v=0
 o=- 7400546379179479477 208696200 IN IP4 0.0.0.0
 s=-
 t=0 0
@@ -465,7 +467,8 @@ a=ice-pwd:BtIqlWHfwhsJdFiBROeLuEbNmYfHxRfT".to_owned();
             "sha-256 97:52:D6:1F:1E:87:6C:DA:B8:21:95:64:A5:85:89:FA:02:71:C7:4D:B3:FD:25:92:40:FB:6B:65:24:3C:79:88"
         );
 
-        sdp_str = "v=0
+        sdp_str = "\
+v=0
 o=- 7400546379179479477 208696200 IN IP4 0.0.0.0
 s=-
 t=0 0
@@ -488,7 +491,8 @@ a=ice-pwd:BtIqlWHfwhsJdFiBROeLuEbNmYfHxRfT"
             "can not find fingerprint attribute"
         );
 
-        sdp_str = "v=0
+        sdp_str = "\
+v=0
 o=- 7400546379179479477 208696200 IN IP4 0.0.0.0
 s=-
 t=0 0
