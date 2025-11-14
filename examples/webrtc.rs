@@ -8,10 +8,10 @@ mod webrtc_dummy;
 use crate::webrtc_dummy::WebRTCStream;
 
 use std::io::Write;
-use bytes::Bytes;
 
-use clap::{Arg, Command};
 use anyhow::Result;
+use bytes::Bytes;
+use clap::{Arg, Command};
 use tokio::time::Duration;
 
 use webrtc::peer_connection::math_rand_alpha;
@@ -75,7 +75,10 @@ async fn main() -> Result<()> {
         // Wait for the answer to be pasted
         println!(
             "Start new terminal run: \n{} \ncopy remote endpoint and paste here",
-            format!("cargo r --features webrtc --example webrtc -- --offer {}", local_endpoint)
+            format!(
+                "cargo r --features webrtc --example webrtc -- --offer {}",
+                local_endpoint
+            )
         );
         // readline blocking
         let line = std::io::stdin()
@@ -84,7 +87,10 @@ async fn main() -> Result<()> {
             .ok_or_else(|| anyhow::anyhow!("No input received"))??;
         webrtc_stream.set_remote_endpoint(&line).await?;
     } else {
-        println!("Copy local endpoint and paste to the other peer: \n{}", local_endpoint);
+        println!(
+            "Copy local endpoint and paste to the other peer: \n{}",
+            local_endpoint
+        );
     }
 
     let s1 = webrtc_stream.clone();
