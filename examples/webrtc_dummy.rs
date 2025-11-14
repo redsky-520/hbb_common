@@ -4,6 +4,8 @@ use bytes::BytesMut;
 
 use hbb_common::ResultType;
 
+/// Dummy implementation of WebRTCStream used when the `webrtc` feature is disabled.
+/// This struct allows the code to compile and run without actual WebRTC functionality.
 pub struct WebRTCStream {
     // mock struct
 }
