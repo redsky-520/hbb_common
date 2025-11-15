@@ -36,6 +36,8 @@ pub struct WebRTCStream {
 /// Most browsers, including Chromium, enforce this protocol limit.
 const DATA_CHANNEL_BUFFER_SIZE: u16 = u16::MAX;
 
+const DEFAULT_ICE_SERVER: &str = "stun:stun.cloudflare.com:3478";
+
 lazy_static::lazy_static! {
     static ref SESSIONS: Arc::<Mutex<HashMap<String, WebRTCStream>>> = Default::default();
 }
@@ -133,13 +135,14 @@ impl WebRTCStream {
         };
 
         let mut key = Self::get_key_for_sdp_json(&remote_offer)?;
-        let mut lock = SESSIONS.lock().await;
-        if let Some(cached_stream) = lock.get(&key) {
+        let sessions_lock = SESSIONS.lock().await;
+        if let Some(cached_stream) = sessions_lock.get(&key) {
             if !key.is_empty() {
                 log::debug!("Start webrtc with cached peer");
                 return Ok(cached_stream.clone());
             }
         }
+        drop(sessions_lock);
 
         // Create a SettingEngine and enable Detach
         let mut s = SettingEngine::default();
@@ -152,7 +155,7 @@ impl WebRTCStream {
         // Prepare the configuration
         let config = RTCConfiguration {
             ice_servers: vec![RTCIceServer {
-                urls: vec!["stun:stun.cloudflare.com:3478".to_owned()],
+                urls: vec![DEFAULT_ICE_SERVER.to_string()],
                 ..Default::default()
             }],
             ..Default::default()
@@ -218,14 +221,11 @@ impl WebRTCStream {
                         let _ = stream_for_close2.lock().await.close().await;
                         log::debug!("WebRTC session stream closed");
 
-                        let mut lock = SESSIONS.lock().await;
+                        let mut sessions_lock = SESSIONS.lock().await;
                         match Self::get_key_for_peer(&pc_for_close2, start_local_offer).await {
                             Ok(k) => {
-                                lock.remove(&k);
-                                log::debug!(
-                                    "WebRTC session removed key from cache: {}",
-                                    k
-                                );
+                                sessions_lock.remove(&k);
+                                log::debug!("WebRTC session removed key: {}", k);
                             }
                             Err(_e) => {}
                         }
@@ -266,8 +266,7 @@ impl WebRTCStream {
             state_notify: notify_rx,
             send_timeout: ms_timeout,
         };
-
-        lock.insert(key, webrtc_stream.clone());
+        SESSIONS.lock().await.insert(key, webrtc_stream.clone());
         Ok(webrtc_stream)
     }
 
