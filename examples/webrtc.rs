@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
         "".to_string()
     };
 
-    let webrtc_stream = WebRTCStream::new(&remote_endpoint, 30000).await?;
+    let webrtc_stream = WebRTCStream::new(&remote_endpoint, false, 30000).await?;
     // Print the offer to be sent to the other peer
     let local_endpoint = webrtc_stream.get_local_endpoint().await?;
 

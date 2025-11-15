@@ -11,6 +11,7 @@ use webrtc::ice::mdns::MulticastDnsMode;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
+use webrtc::peer_connection::policy::ice_transport_policy::RTCIceTransportPolicy;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 
@@ -20,7 +21,9 @@ use bytes::{Bytes, BytesMut};
 use tokio::sync::watch;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
+use url::Url;
 
+use crate::config;
 use crate::protobuf::Message;
 use crate::sodiumoxide::crypto::secretbox::Key;
 use crate::ResultType;
@@ -36,7 +39,15 @@ pub struct WebRTCStream {
 /// Most browsers, including Chromium, enforce this protocol limit.
 const DATA_CHANNEL_BUFFER_SIZE: u16 = u16::MAX;
 
-const DEFAULT_ICE_SERVER: &str = "stun:stun.cloudflare.com:3478";
+// use 3 public STUN servers to find out the NAT type, 2 must be the same address but different ports
+// https://stackoverflow.com/questions/72805316/determine-nat-mapping-behaviour-using-two-stun-servers
+// luckily nextcloud supports two ports for STUN
+// unluckily webrtc-rs does not use the same port to do the STUN request
+static DEFAULT_ICE_SERVERS: [&str; 3] = [
+    "stun:stun.cloudflare.com:3478",
+    "stun:stun.nextcloud.com:3478",
+    "stun:stun.nextcloud.com:443",
+];
 
 lazy_static::lazy_static! {
     static ref SESSIONS: Arc::<Mutex<HashMap<String, WebRTCStream>>> = Default::default();
@@ -126,7 +137,35 @@ impl WebRTCStream {
         Self::get_key_for_sdp(&desc)
     }
 
-    pub async fn new(remote_endpoint: &str, ms_timeout: u64) -> ResultType<Self> {
+    #[inline]
+    fn get_turn_server_from_url(url: &str) -> Option<RTCIceServer> {
+        // standard url format with turn scheme: turn://user:pass@host:port
+        match Url::parse(url) {
+            Ok(u) => {
+                if u.scheme() == "turn" {
+                    Some(RTCIceServer {
+                        urls: vec![format!(
+                            "turn:{}:{}",
+                            u.host_str().unwrap_or_default(),
+                            u.port().unwrap_or(3478)
+                        )],
+                        username: u.username().to_string(),
+                        credential: u.password().unwrap_or_default().to_string(),
+                        ..Default::default()
+                    })
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
+        }
+    }
+
+    pub async fn new(
+        remote_endpoint: &str,
+        force_relay: bool,
+        ms_timeout: u64,
+    ) -> ResultType<Self> {
         log::debug!("New webrtc stream to endpoint: {}", remote_endpoint);
         let remote_offer = if remote_endpoint.is_empty() {
             "".into()
@@ -144,6 +183,7 @@ impl WebRTCStream {
         }
         drop(sessions_lock);
 
+        let start_local_offer = remote_offer.is_empty();
         // Create a SettingEngine and enable Detach
         let mut s = SettingEngine::default();
         s.detach_data_channels();
@@ -151,17 +191,29 @@ impl WebRTCStream {
 
         // Create the API object
         let api = APIBuilder::new().with_setting_engine(s).build();
+        let mut ice_servers = vec![RTCIceServer {
+            urls: DEFAULT_ICE_SERVERS.iter().map(|s| s.to_string()).collect(),
+            ..Default::default()
+        }];
+        if start_local_offer {
+            // only offer needs TURN server
+            let relay_server = config::Config::get_option(config::keys::OPTION_RELAY_SERVER);
+            if let Some(turn_server) = Self::get_turn_server_from_url(&relay_server) {
+                ice_servers.push(turn_server);
+            }
+        }
 
         // Prepare the configuration
         let config = RTCConfiguration {
-            ice_servers: vec![RTCIceServer {
-                urls: vec![DEFAULT_ICE_SERVER.to_string()],
-                ..Default::default()
-            }],
+            ice_servers,
+            ice_transport_policy: if force_relay {
+                RTCIceTransportPolicy::Relay
+            } else {
+                RTCIceTransportPolicy::All
+            },
             ..Default::default()
         };
 
-        let start_local_offer = remote_offer.is_empty();
         let (notify_tx, notify_rx) = watch::channel(false);
         // Create a new RTCPeerConnection
         let pc = Arc::new(api.new_peer_connection(config).await?);
@@ -410,6 +462,54 @@ mod tests {
     use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
     #[test]
+    fn test_webrtc_turn_url() {
+        assert_eq!(
+            WebRTCStream::get_turn_server_from_url("turn://example.com:3478")
+                .unwrap_or_default()
+                .urls[0],
+            "turn:example.com:3478"
+        );
+
+        assert_eq!(
+            WebRTCStream::get_turn_server_from_url("turn://example.com")
+                .unwrap_or_default()
+                .urls[0],
+            "turn:example.com:3478"
+        );
+
+        assert_eq!(
+            WebRTCStream::get_turn_server_from_url("turn://123@example.com")
+                .unwrap_or_default()
+                .username,
+            "123"
+        );
+
+        assert_eq!(
+            WebRTCStream::get_turn_server_from_url("turn://123@example.com")
+                .unwrap_or_default()
+                .credential,
+            ""
+        );
+
+        assert_eq!(
+            WebRTCStream::get_turn_server_from_url("turn://123:321@example.com")
+                .unwrap_or_default()
+                .credential,
+            "321"
+        );
+
+        assert_eq!(
+            WebRTCStream::get_turn_server_from_url("stun://example.com:3478"),
+            None
+        );
+
+        assert_eq!(
+            WebRTCStream::get_turn_server_from_url("http://123:123@example.com:3478"),
+            None
+        );
+    }
+
+    #[test]
     fn test_webrtc_session_key() {
         let mut sdp_str = "".to_owned();
         assert_eq!(
@@ -554,18 +654,18 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
     async fn test_webrtc_new_stream() {
         let mut endpoint = "webrtc://sdfsdf".to_owned();
         assert!(
-            WebRTCStream::new(&endpoint, 10000).await.is_err(),
+            WebRTCStream::new(&endpoint, false, 10000).await.is_err(),
             "invalid webrtc endpoint should error"
         );
 
         endpoint = "wss://sdfsdf".to_owned();
         assert!(
-            WebRTCStream::new(&endpoint, 10000).await.is_err(),
+            WebRTCStream::new(&endpoint, false, 10000).await.is_err(),
             "invalid webrtc endpoint should error"
         );
 
         assert!(
-            WebRTCStream::new("", 10000).await.is_ok(),
+            WebRTCStream::new("", false, 10000).await.is_ok(),
             "local webrtc endpoint should ok"
         );
 
@@ -580,7 +680,7 @@ LjIgNjQwMDcgdHlwIGhvc3RcclxuYT1jYW5kaWRhdGU6MTg2MTA0NTE5MCAxIHVkcCAxNjk0NDk4ODE1
 ggcmFkZHIgMC4wLjAuMCBycG9ydCA2NDAwOFxyXG5hPWNhbmRpZGF0ZToxODYxMDQ1MTkwIDIgdWRwIDE2OTQ0OTg4MTUgMTQuMjEyLjY4LjEyIDI3MDA0\
 IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNcclxuIn0=".to_owned();
         assert!(
-            WebRTCStream::new(&endpoint, 10000).await.is_err(),
+            WebRTCStream::new(&endpoint, false, 10000).await.is_err(),
             "connect to an 'answer' webrtc endpoint should error"
         );
     }

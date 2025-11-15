@@ -134,7 +134,7 @@ pub async fn connect_tcp<
     #[cfg(feature = "webrtc")]
     if is_webrtc_endpoint(&target.to_string()) {
         return Ok(Stream::WebRTC(
-            webrtc::WebRTCStream::new(&target.to_string(), ms_timeout).await?,
+            webrtc::WebRTCStream::new(&target.to_string(), false, ms_timeout).await?,
         ));
     }
     let target_str = check_ws(&target.to_string());
