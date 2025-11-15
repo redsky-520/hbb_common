@@ -32,7 +32,8 @@ pub struct WebRTCStream {
     send_timeout: u64,
 }
 
-/// message size limit for Chromium
+/// Standard maximum message size for WebRTC data channels (RFC 8831, 65535 bytes).
+/// Most browsers, including Chromium, enforce this protocol limit.
 const DATA_CHANNEL_BUFFER_SIZE: u16 = u16::MAX;
 
 lazy_static::lazy_static! {
@@ -222,9 +223,8 @@ impl WebRTCStream {
                             Ok(k) => {
                                 lock.remove(&k);
                                 log::debug!(
-                                    "WebRTC session removed key from cache: {} current len: {}",
-                                    k,
-                                    lock.len()
+                                    "WebRTC session removed key from cache: {}",
+                                    k
                                 );
                             }
                             Err(_e) => {}
@@ -274,7 +274,7 @@ impl WebRTCStream {
     #[inline]
     pub async fn get_local_endpoint(&self) -> ResultType<String> {
         if let Some(local_desc) = self.pc.local_description().await {
-            let sdp = serde_json::to_string(&local_desc).unwrap_or_default();
+            let sdp = serde_json::to_string(&local_desc)?;
             let endpoint = Self::sdp_to_endpoint(&sdp);
             Ok(endpoint)
         } else {

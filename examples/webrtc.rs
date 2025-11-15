@@ -14,6 +14,7 @@ use bytes::Bytes;
 use clap::{Arg, Command};
 use tokio::time::Duration;
 
+#[cfg(feature = "webrtc")]
 use webrtc::peer_connection::math_rand_alpha;
 
 #[tokio::main]
