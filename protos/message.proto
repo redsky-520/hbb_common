@@ -607,7 +607,6 @@ message SwitchDisplay {
   SupportedResolutions resolutions = 7;
   // Do not care about the origin point for now.
   Resolution original_resolution = 8;
-  double scale = 9;
 }
 
 message CaptureDisplays {
