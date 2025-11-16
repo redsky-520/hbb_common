@@ -138,14 +138,15 @@ impl WebRTCStream {
     }
 
     #[inline]
-    fn get_turn_server_from_url(url: &str) -> Option<RTCIceServer> {
+    fn get_ice_server_from_url(url: &str) -> Option<RTCIceServer> {
         // standard url format with turn scheme: turn://user:pass@host:port
         match Url::parse(url) {
             Ok(u) => {
-                if u.scheme() == "turn" {
+                if u.scheme() == "turn" || u.scheme() == "stun" {
                     Some(RTCIceServer {
                         urls: vec![format!(
-                            "turn:{}:{}",
+                            "{}:{}:{}",
+                            u.scheme(),
                             u.host_str().unwrap_or_default(),
                             u.port().unwrap_or(3478)
                         )],
@@ -159,6 +160,24 @@ impl WebRTCStream {
             }
             Err(_) => None,
         }
+    }
+
+    #[inline]
+    fn get_ice_servers() -> Vec<RTCIceServer> {
+        let mut ice_servers = Vec::new();
+        let cfg = config::Config::get_option(config::keys::OPTION_ICE_SERVERS);
+        for url in cfg.split(',').map(str::trim) {
+            if let Some(ice_server) = Self::get_ice_server_from_url(url) {
+                ice_servers.push(ice_server);
+            }
+        }
+        if ice_servers.is_empty() {
+            ice_servers.push(RTCIceServer {
+                urls: DEFAULT_ICE_SERVERS.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            });
+        }
+        ice_servers
     }
 
     pub async fn new(
@@ -191,21 +210,10 @@ impl WebRTCStream {
 
         // Create the API object
         let api = APIBuilder::new().with_setting_engine(s).build();
-        let mut ice_servers = vec![RTCIceServer {
-            urls: DEFAULT_ICE_SERVERS.iter().map(|s| s.to_string()).collect(),
-            ..Default::default()
-        }];
-        if start_local_offer {
-            // only offer needs TURN server
-            let relay_server = config::Config::get_option(config::keys::OPTION_RELAY_SERVER);
-            if let Some(turn_server) = Self::get_turn_server_from_url(&relay_server) {
-                ice_servers.push(turn_server);
-            }
-        }
 
-        // Prepare the configuration
+        // Prepare the configuration, get ICE servers from config
         let config = RTCConfiguration {
-            ice_servers,
+            ice_servers: Self::get_ice_servers(),
             ice_transport_policy: if force_relay {
                 RTCIceTransportPolicy::Relay
             } else {
@@ -458,54 +466,78 @@ pub fn is_webrtc_endpoint(endpoint: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::config;
+    use crate::webrtc::DEFAULT_ICE_SERVERS;
     use crate::webrtc::WebRTCStream;
     use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
     #[test]
-    fn test_webrtc_turn_url() {
+    fn test_webrtc_ice_url() {
         assert_eq!(
-            WebRTCStream::get_turn_server_from_url("turn://example.com:3478")
+            WebRTCStream::get_ice_server_from_url("turn://example.com:3478")
                 .unwrap_or_default()
                 .urls[0],
             "turn:example.com:3478"
         );
 
         assert_eq!(
-            WebRTCStream::get_turn_server_from_url("turn://example.com")
+            WebRTCStream::get_ice_server_from_url("turn://example.com")
                 .unwrap_or_default()
                 .urls[0],
             "turn:example.com:3478"
         );
 
         assert_eq!(
-            WebRTCStream::get_turn_server_from_url("turn://123@example.com")
+            WebRTCStream::get_ice_server_from_url("turn://123@example.com")
                 .unwrap_or_default()
                 .username,
             "123"
         );
 
         assert_eq!(
-            WebRTCStream::get_turn_server_from_url("turn://123@example.com")
+            WebRTCStream::get_ice_server_from_url("turn://123@example.com")
                 .unwrap_or_default()
                 .credential,
             ""
         );
 
         assert_eq!(
-            WebRTCStream::get_turn_server_from_url("turn://123:321@example.com")
+            WebRTCStream::get_ice_server_from_url("turn://123:321@example.com")
                 .unwrap_or_default()
                 .credential,
             "321"
         );
 
         assert_eq!(
-            WebRTCStream::get_turn_server_from_url("stun://example.com:3478"),
-            None
+            WebRTCStream::get_ice_server_from_url("stun://example.com:3478")
+                .unwrap_or_default()
+                .urls[0],
+            "stun:example.com:3478"
         );
 
         assert_eq!(
-            WebRTCStream::get_turn_server_from_url("http://123:123@example.com:3478"),
+            WebRTCStream::get_ice_server_from_url("http://123:123@example.com:3478"),
             None
+        );
+
+        config::Config::set_option("ice-servers".to_string(), "".to_string());
+        assert_eq!(
+            WebRTCStream::get_ice_servers()[0].urls[0],
+            DEFAULT_ICE_SERVERS[0].to_string()
+        );
+
+        config::Config::set_option("ice-servers".to_string(), ",stun://example.com,turn://example.com,sdf".to_string());
+        assert_eq!(
+            WebRTCStream::get_ice_servers()[0].urls[0],
+            "stun:example.com:3478"
+        );
+        assert_eq!(
+            WebRTCStream::get_ice_servers()[1].urls[0],
+            "turn:example.com:3478"
+        );
+        assert_eq!(
+            WebRTCStream::get_ice_servers().len(),
+            2
         );
     }
 

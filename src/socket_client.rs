@@ -1,3 +1,5 @@
+#[cfg(feature = "webrtc")]
+use crate::webrtc::{self, is_webrtc_endpoint};
 use crate::{
     config::{Config, NetworkType},
     tcp::FramedStream,
@@ -5,8 +7,6 @@ use crate::{
     websocket::{self, check_ws, is_ws_endpoint},
     ResultType, Stream,
 };
-#[cfg(feature = "webrtc")]
-use crate::webrtc::{self, is_webrtc_endpoint};
 use anyhow::Context;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::{ToSocketAddrs, UdpSocket};
