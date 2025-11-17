@@ -308,7 +308,23 @@ impl WebRTCStream {
                                 sessions_lock.remove(&k);
                                 log::debug!("WebRTC session removed key: {}", k);
                             }
-                            Err(_e) => {}
+                            Err(e) => {
+                                log::error!("Failed to extract key for peer during session cleanup: {:?}", e);
+                                // Fallback: try to remove any session associated with this peer connection
+                                let keys_to_remove: Vec<String> = sessions_lock.iter()
+                                    .filter_map(|(key, session)| {
+                                        if Arc::ptr_eq(&session.peer_connection, &pc_for_close2) {
+                                            Some(key.clone())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect();
+                                for k in keys_to_remove {
+                                    sessions_lock.remove(&k);
+                                    log::debug!("WebRTC session removed by fallback key: {}", k);
+                                }
+                            }
                         }
                     }
                     _ => {}
