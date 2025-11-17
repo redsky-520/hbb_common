@@ -85,6 +85,8 @@ fn find_cmd_path(cmd: &'static str) -> String {
     cmd.to_string()
 }
 
+// Deprecated. Use `hbb_common::platform::linux::is_kde_session()` instead for now.
+// Or we need to set the correct environment variable in the server process.
 #[inline]
 pub fn is_kde() -> bool {
     if let Ok(env) = std::env::var(XDG_CURRENT_DESKTOP) {
@@ -92,6 +94,18 @@ pub fn is_kde() -> bool {
     } else {
         false
     }
+}
+
+// Don't use `hbb_common::platform::linux::is_kde()` here.
+// It's not correct in the server process.
+pub fn is_kde_session() -> bool {
+    std::process::Command::new(CMD_SH.as_str())
+        .arg("-c")
+        .arg("pgrep -f kded[0-9]+")
+        .stdout(std::process::Stdio::piped())
+        .output()
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(false)
 }
 
 #[inline]
