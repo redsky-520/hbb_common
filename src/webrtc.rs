@@ -142,7 +142,11 @@ impl WebRTCStream {
         // standard url format with turn scheme: turn://user:pass@host:port
         match Url::parse(url) {
             Ok(u) => {
-                if u.scheme() == "turn" || u.scheme() == "stun" {
+                if u.scheme() == "turn"
+                    || u.scheme() == "turns"
+                    || u.scheme() == "stun"
+                    || u.scheme() == "stuns"
+                {
                     Some(RTCIceServer {
                         urls: vec![format!(
                             "{}:{}:{}",
@@ -166,16 +170,33 @@ impl WebRTCStream {
     fn get_ice_servers() -> Vec<RTCIceServer> {
         let mut ice_servers = Vec::new();
         let cfg = config::Config::get_option(config::keys::OPTION_ICE_SERVERS);
+
+        let mut has_stun = false;
+
         for url in cfg.split(',').map(str::trim) {
             if let Some(ice_server) = Self::get_ice_server_from_url(url) {
+                // Detect STUN in user config
+                if ice_server
+                    .urls
+                    .iter()
+                    .any(|u| u.starts_with("stun:") || u.starts_with("stuns:"))
+                {
+                    has_stun = true;
+                }
+
                 ice_servers.push(ice_server);
             }
         }
-        if ice_servers.is_empty() {
-            ice_servers.push(RTCIceServer {
-                urls: DEFAULT_ICE_SERVERS.iter().map(|s| s.to_string()).collect(),
-                ..Default::default()
-            });
+
+        // If there is no STUN (either TURN-only or empty config) → prepend defaults
+        if !has_stun {
+            ice_servers.insert(
+                0,
+                RTCIceServer {
+                    urls: DEFAULT_ICE_SERVERS.iter().map(|s| s.to_string()).collect(),
+                    ..Default::default()
+                },
+            );
         }
         ice_servers
     }
@@ -467,8 +488,8 @@ pub fn is_webrtc_endpoint(endpoint: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::config;
-    use crate::webrtc::DEFAULT_ICE_SERVERS;
     use crate::webrtc::WebRTCStream;
+    use crate::webrtc::DEFAULT_ICE_SERVERS;
     use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
     #[test]
@@ -526,7 +547,10 @@ mod tests {
             DEFAULT_ICE_SERVERS[0].to_string()
         );
 
-        config::Config::set_option("ice-servers".to_string(), ",stun://example.com,turn://example.com,sdf".to_string());
+        config::Config::set_option(
+            "ice-servers".to_string(),
+            ",stun://example.com,turn://example.com,sdf".to_string(),
+        );
         assert_eq!(
             WebRTCStream::get_ice_servers()[0].urls[0],
             "stun:example.com:3478"
@@ -535,10 +559,7 @@ mod tests {
             WebRTCStream::get_ice_servers()[1].urls[0],
             "turn:example.com:3478"
         );
-        assert_eq!(
-            WebRTCStream::get_ice_servers().len(),
-            2
-        );
+        assert_eq!(WebRTCStream::get_ice_servers().len(), 2);
     }
 
     #[test]
