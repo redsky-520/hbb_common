@@ -17,16 +17,19 @@ use tokio::time::Duration;
 #[cfg(feature = "webrtc")]
 use webrtc::peer_connection::math_rand_alpha;
 
+#[cfg(not(feature = "webrtc"))]
 #[tokio::main]
 async fn main() -> Result<()> {
-    #[cfg(not(feature = "webrtc"))]
-    if true {
-        println!(
-            "The webrtc feature is not enabled. \
-            Please enable the webrtc feature to run this example."
-        );
-        return Ok(());
-    }
+    println!(
+        "The webrtc feature is not enabled. \
+        Please enable the webrtc feature to run this example."
+    );
+    Ok(())
+}
+
+#[cfg(feature = "webrtc")]
+#[tokio::main]
+async fn main() -> Result<()> {
     let app = Command::new("webrtc-stream")
         .about("An example of webrtc stream using hbb_common and webrtc-rs")
         .arg(
