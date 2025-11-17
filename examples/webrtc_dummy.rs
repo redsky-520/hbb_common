@@ -17,7 +17,7 @@ impl Clone for WebRTCStream {
 }
 
 impl WebRTCStream {
-    pub async fn new(_: &str, _: u64) -> ResultType<Self> {
+    pub async fn new(_: &str, _: bool, _: u64) -> ResultType<Self> {
         Ok(Self {})
     }
 
