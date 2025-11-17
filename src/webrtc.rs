@@ -309,11 +309,15 @@ impl WebRTCStream {
                                 log::debug!("WebRTC session removed key: {}", k);
                             }
                             Err(e) => {
-                                log::error!("Failed to extract key for peer during session cleanup: {:?}", e);
+                                log::error!(
+                                    "Failed to extract key for peer during session cleanup: {:?}",
+                                    e
+                                );
                                 // Fallback: try to remove any session associated with this peer connection
-                                let keys_to_remove: Vec<String> = sessions_lock.iter()
+                                let keys_to_remove: Vec<String> = sessions_lock
+                                    .iter()
                                     .filter_map(|(key, session)| {
-                                        if Arc::ptr_eq(&session.peer_connection, &pc_for_close2) {
+                                        if Arc::ptr_eq(&session.pc, &pc_for_close2) {
                                             Some(key.clone())
                                         } else {
                                             None
@@ -357,13 +361,19 @@ impl WebRTCStream {
             log::debug!("Start webrtc with remote key: {}", key);
         }
 
+        let mut final_lock = SESSIONS.lock().await;
+        if let Some(session) = final_lock.get(&key) {
+            pc.close().await.ok();
+            return Ok(session.clone());
+        }
+
         let webrtc_stream = Self {
             pc,
             stream,
             state_notify: notify_rx,
             send_timeout: ms_timeout,
         };
-        SESSIONS.lock().await.insert(key, webrtc_stream.clone());
+        final_lock.insert(key, webrtc_stream.clone());
         Ok(webrtc_stream)
     }
 
@@ -576,6 +586,10 @@ mod tests {
             "turn:example.com:3478"
         );
         assert_eq!(WebRTCStream::get_ice_servers().len(), 2);
+        config::Config::set_option(
+            "ice-servers".to_string(),
+            "".to_string(),
+        );
     }
 
     #[test]
