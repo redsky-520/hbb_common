@@ -2,20 +2,12 @@ extern crate hbb_common;
 
 #[cfg(feature = "webrtc")]
 use hbb_common::webrtc::WebRTCStream;
-#[cfg(not(feature = "webrtc"))]
-mod webrtc_dummy;
-#[cfg(not(feature = "webrtc"))]
-use crate::webrtc_dummy::WebRTCStream;
 
 use std::io::Write;
-
 use anyhow::Result;
 use bytes::Bytes;
 use clap::{Arg, Command};
 use tokio::time::Duration;
-
-#[cfg(feature = "webrtc")]
-use webrtc::peer_connection::math_rand_alpha;
 
 #[cfg(not(feature = "webrtc"))]
 #[tokio::main]
@@ -121,6 +113,7 @@ async fn main() -> Result<()> {
 }
 
 // read_loop shows how to read from the datachannel directly
+#[cfg(feature = "webrtc")]
 async fn read_loop(mut stream: WebRTCStream) -> Result<()> {
     loop {
         let Some(res) = stream.next().await else {
@@ -140,6 +133,7 @@ async fn read_loop(mut stream: WebRTCStream) -> Result<()> {
 }
 
 // write_loop shows how to write to the webrtc stream directly
+#[cfg(feature = "webrtc")]
 async fn write_loop(mut stream: WebRTCStream) -> Result<()> {
     let mut result = Result::<()>::Ok(());
     while result.is_ok() {
@@ -148,7 +142,7 @@ async fn write_loop(mut stream: WebRTCStream) -> Result<()> {
 
         tokio::select! {
             _ = timeout.as_mut() =>{
-                let message = math_rand_alpha(15);
+                let message = webrtc::peer_connection::math_rand_alpha(15);
                 result = stream.send_bytes(Bytes::from(message.clone())).await;
                 println!("Sent '{message}' {}", result.is_ok());
             }

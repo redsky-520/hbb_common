@@ -137,4 +137,13 @@ impl Stream {
     pub fn from(stream: TcpStream, stream_addr: SocketAddr) -> Self {
         Self::Tcp(tcp::FramedStream::from(stream, stream_addr))
     }
+
+    #[inline]
+    #[cfg(feature = "webrtc")]
+    pub fn get_webrtc_stream(&self) -> Option<webrtc::WebRTCStream> {
+        match self {
+            Self::WebRTC(s) => Some(s.clone()),
+            _ => None,
+        }
+    }
 }
