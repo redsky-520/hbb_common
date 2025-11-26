@@ -1,3 +1,5 @@
+#[cfg(feature = "webrtc")]
+use crate::webrtc::{self, is_webrtc_endpoint};
 use crate::{
     config::{Config, NetworkType},
     tcp::FramedStream,
@@ -129,6 +131,12 @@ pub async fn connect_tcp<
     target: T,
     ms_timeout: u64,
 ) -> ResultType<crate::Stream> {
+    #[cfg(feature = "webrtc")]
+    if is_webrtc_endpoint(&target.to_string()) {
+        return Ok(Stream::WebRTC(
+            webrtc::WebRTCStream::new(&target.to_string(), false, ms_timeout).await?,
+        ));
+    }
     let target_str = check_ws(&target.to_string());
     if is_ws_endpoint(&target_str) {
         return Ok(Stream::WebSocket(
