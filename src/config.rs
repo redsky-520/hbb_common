@@ -2550,6 +2550,16 @@ pub mod keys {
     pub const OPTION_REGISTER_DEVICE: &str = "register-device";
     pub const OPTION_RELAY_SERVER: &str = "relay-server";
     pub const OPTION_ICE_SERVERS: &str = "ice-servers";
+    /// Maximum number of files allowed during a single file transfer request.
+    ///
+    /// Key: `file-transfer-max-files`.
+    /// Unit: number of files (not bytes).
+    ///
+    /// Behaviour:
+    /// - If set to a positive integer N, at most N files are allowed.
+    /// - If set to 0, a safe built-in default is used (see DEFAULT_MAX_VALIDATED_FILES).
+    /// - If unset, negative, or non-integer, no explicit limit is enforced for backward compatibility.
+    pub const OPTION_FILE_TRANSFER_MAX_FILES: &str = "file-transfer-max-files";
     pub const OPTION_DISABLE_UDP: &str = "disable-udp";
     pub const OPTION_ALLOW_INSECURE_TLS_FALLBACK: &str = "allow-insecure-tls-fallback";
     pub const OPTION_SHOW_VIRTUAL_MOUSE: &str = "show-virtual-mouse";
@@ -2776,6 +2786,7 @@ pub mod keys {
         OPTION_REGISTER_DEVICE,
         OPTION_HIDE_POWERED_BY_ME,
         OPTION_MAIN_WINDOW_ALWAYS_ON_TOP,
+        OPTION_FILE_TRANSFER_MAX_FILES,
     ];
 }
 
