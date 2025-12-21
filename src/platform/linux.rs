@@ -1,5 +1,10 @@
 use crate::ResultType;
-use std::{collections::HashMap, process::Command};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process::Command,
+};
+use users::{get_current_uid, get_user_by_uid, os::unix::UserExt};
 
 use sctk::{
     output::OutputData,
@@ -442,6 +447,56 @@ pub fn get_wayland_displays() -> ResultType<Vec<WaylandDisplayInfo>> {
     Ok(display_infos)
 }
 
+/// Escape a string for safe use in shell commands by wrapping in single quotes.
+///
+/// This function handles the edge case of single quotes within the string by:
+/// 1. Ending the current single-quoted section
+/// 2. Adding an escaped single quote
+/// 3. Starting a new single-quoted section
+///
+/// Example: "it's here" -> "'it'\''s here'"
+#[inline]
+pub fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace("'", "'\\''"))
+}
+
+/// Get the current user's home directory via getpwuid (trusted source).
+///
+/// This function uses the system's password database (via `getpwuid`) to retrieve
+/// the home directory, avoiding the security risk of relying on the `HOME`
+/// environment variable which can be manipulated by untrusted input.
+///
+/// # Returns
+/// - `Some(PathBuf)` if the home directory was found and exists
+/// - `None` if the user lookup failed or the directory doesn't exist
+///
+/// # Security
+/// This function is designed to be safe against confused-deputy attacks where
+/// an attacker might manipulate environment variables to influence privileged
+/// operations.
+pub fn get_home_dir_trusted() -> Option<PathBuf> {
+    let uid = get_current_uid();
+    match get_user_by_uid(uid) {
+        Some(user) => {
+            let home = user.home_dir();
+            if Path::is_dir(home) {
+                Some(PathBuf::from(home))
+            } else {
+                log::warn!(
+                    "Home directory for uid {} does not exist or is not a directory: {:?}",
+                    uid,
+                    home
+                );
+                None
+            }
+        }
+        None => {
+            log::warn!("Failed to get user info for uid {}", uid);
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -454,5 +509,64 @@ mod tests {
             run_cmds_trim_newline("whoami").unwrap() + "\n",
             run_cmds("whoami").unwrap()
         );
+    }
+
+    /// Test get_home_dir_trusted: returns valid path and ignores HOME env var
+    #[test]
+    fn test_get_home_dir_trusted() {
+        let original_home = std::env::var("HOME").ok();
+
+        // Set HOME to a fake/malicious path
+        std::env::set_var("HOME", "/tmp/fake_malicious_home");
+        let result = get_home_dir_trusted();
+
+        // Restore original HOME
+        match original_home {
+            Some(home) => std::env::set_var("HOME", home),
+            None => std::env::remove_var("HOME"),
+        }
+
+        // Verify: returns valid path that is NOT the fake HOME
+        if let Some(path) = result {
+            assert!(path.is_absolute(), "Path should be absolute: {:?}", path);
+            assert!(path.is_dir(), "Path should be a directory: {:?}", path);
+            assert_ne!(
+                path.to_string_lossy(),
+                "/tmp/fake_malicious_home",
+                "Should not use HOME env var"
+            );
+        }
+    }
+
+    /// Test shell_quote with normal strings
+    #[test]
+    fn test_shell_quote_normal() {
+        assert_eq!(shell_quote("hello"), "'hello'");
+        assert_eq!(shell_quote("/home/user"), "'/home/user'");
+    }
+
+    /// Test shell_quote with spaces
+    #[test]
+    fn test_shell_quote_spaces() {
+        assert_eq!(shell_quote("/home/my user/file"), "'/home/my user/file'");
+        assert_eq!(shell_quote("path with spaces"), "'path with spaces'");
+    }
+
+    /// Test shell_quote with single quotes (the tricky case)
+    #[test]
+    fn test_shell_quote_single_quotes() {
+        assert_eq!(shell_quote("it's"), "'it'\\''s'");
+        assert_eq!(shell_quote("don't stop"), "'don'\\''t stop'");
+    }
+
+    /// Test shell_quote with shell metacharacters
+    #[test]
+    fn test_shell_quote_metacharacters() {
+        // These should all be safely quoted
+        assert_eq!(shell_quote("test;rm -rf /"), "'test;rm -rf /'");
+        assert_eq!(shell_quote("$(whoami)"), "'$(whoami)'");
+        assert_eq!(shell_quote("`id`"), "'`id`'");
+        assert_eq!(shell_quote("a && b"), "'a && b'");
+        assert_eq!(shell_quote("a | b"), "'a | b'");
     }
 }
