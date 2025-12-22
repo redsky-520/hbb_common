@@ -626,6 +626,23 @@ impl Config {
         (self.id.is_empty() && self.enc_id.is_empty()) || self.key_pair.0.is_empty()
     }
 
+    /// Get the user's home directory for configuration purposes.
+    ///
+    /// # Security Note
+    /// This function uses `dirs_next::home_dir()` which reads the `$HOME` environment
+    /// variable on Unix systems. This is acceptable for user-space operations (config
+    /// file storage, logging) where the user may intentionally redirect their home
+    /// directory.
+    ///
+    /// **DO NOT use this function in privileged contexts** (e.g., code executed via
+    /// `gtk_sudo` or system services running as root). For privileged operations on
+    /// Linux, use `crate::platform::linux::get_home_dir_trusted()` which bypasses
+    /// the `$HOME` environment variable and queries the system password database
+    /// directly via `getpwuid`.
+    ///
+    /// Using `$HOME` in privileged contexts creates a confused-deputy vulnerability
+    /// where an attacker can manipulate the environment variable to inject malicious
+    /// paths into privileged operations.
     pub fn get_home() -> PathBuf {
         #[cfg(any(target_os = "android", target_os = "ios"))]
         return PathBuf::from(APP_HOME_DIR.read().unwrap().as_str());
@@ -666,6 +683,12 @@ impl Config {
         }
     }
 
+    /// Get the log directory path.
+    ///
+    /// # Security Note
+    /// On macOS, this function uses `dirs_next::home_dir()` which reads the `$HOME`
+    /// environment variable. On Linux/Android, it uses `Self::get_home()`.
+    /// See [`Self::get_home()`] for security considerations regarding `$HOME` usage.
     #[allow(unreachable_code)]
     pub fn log_path() -> PathBuf {
         #[cfg(target_os = "macos")]

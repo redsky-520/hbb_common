@@ -68,6 +68,8 @@ pub use whoami;
 pub mod tls;
 pub mod verifier;
 pub use async_recursion;
+#[cfg(target_os = "linux")]
+pub use users;
 
 pub type SessionID = uuid::Uuid;
 
