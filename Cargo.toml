@@ -66,6 +66,7 @@ rustls-native-certs = "0.8"
 webpki-roots = "1.0.4"
 async-recursion = "1.1"
 webrtc = { version = "0.14.0", optional = true }
+libloading = "0.8"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 mac_address = "1.1"
@@ -96,3 +97,4 @@ sctk = { package = "smithay-client-toolkit", version = "0.20.0", default-feature
     "calloop",
 ] }
 users = { version = "0.11" }
+x11 = "2.21"
