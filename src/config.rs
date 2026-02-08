@@ -992,6 +992,10 @@ impl Config {
         config.key_pair
     }
 
+    pub fn get_cached_pk() -> Option<Vec<u8>> {
+        KEY_PAIR.lock().unwrap().clone().map(|k| k.1)
+    }
+
     pub fn no_register_device() -> bool {
         BUILTIN_SETTINGS
             .read()
@@ -1352,6 +1356,11 @@ impl Config {
         }
         *lock = cfg;
         lock.store();
+        // Currently only tested on macOS, so this change is limited to macOS for safety.
+        #[cfg(target_os = "macos")]
+        {
+            *KEY_PAIR.lock().unwrap() = Some(lock.key_pair.clone());
+        }
         true
     }
 
