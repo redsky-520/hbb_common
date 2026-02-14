@@ -312,10 +312,65 @@ pub fn get_exe_time() -> SystemTime {
     })
 }
 
+/// Known cases where machine_uid::get() may fail:
+/// - Windows shutdown: "The media is write protected. (os error 19)"
+/// - macOS (hard to reproduce, reproduced at login screen): "No matching IOPlatformUUID in `ioreg -rd1 -c IOPlatformExpertDevice` command"
 pub fn get_uuid() -> Vec<u8> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    if let Ok(id) = machine_uid::get() {
-        return id.into();
+    {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static CACHED_MACHINE_UID: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+        // Throttle only applies to the fallback machine_uid::get() log below, not the Once::call_once retry logs.
+        static LOG_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+        // Only macOS needs retry logic here because:
+        // - macOS: in testing, only one failure occurred when reading at 50ms intervals, so retry helps
+        // - Windows: failures during shutdown are persistent, retrying is pointless
+        #[cfg(target_os = "macos")]
+        {
+            static INIT: std::sync::Once = std::sync::Once::new();
+            INIT.call_once(|| {
+                // Keep in sync with upstream handling:
+                // https://github.com/rustdesk/rustdesk/blob/85db6779828349b23ca3eba91cc7cd36c5337797/src/common.rs#L822
+                let username = whoami::username().trim_end_matches('\0').to_owned();
+                let max_retries = if username == "root" { 16 } else { 8 };
+                for i in 0..max_retries {
+                    match machine_uid::get() {
+                        Ok(id) => {
+                            let _ = CACHED_MACHINE_UID.set(id.into());
+                            return;
+                        }
+                        Err(e) => {
+                            log::error!("Failed to get machine uid in macOS retry #{i}: {e}");
+                        }
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+            });
+        }
+
+        if let Some(uid) = CACHED_MACHINE_UID.get() {
+            return uid.clone();
+        }
+
+        match machine_uid::get() {
+            Ok(id) => {
+                let uid: Vec<u8> = id.into();
+                let _ = CACHED_MACHINE_UID.set(uid.clone());
+                return uid;
+            }
+            Err(e) => {
+                if LOG_COUNT
+                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
+                        (count < 30).then_some(count + 1)
+                    })
+                    .is_ok()
+                {
+                    log::error!("Failed to get machine uid: {e}");
+                }
+            }
+        }
     }
     Config::get_key_pair().1
 }
