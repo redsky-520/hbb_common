@@ -2347,6 +2347,12 @@ pub struct GroupUser {
         skip_serializing_if = "String::is_empty"
     )]
     pub name: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_string",
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub display_name: String,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
