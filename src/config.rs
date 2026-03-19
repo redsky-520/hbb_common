@@ -660,6 +660,10 @@ impl Config {
         if config.password.starts_with(PASSWORD_ENC_VERSION) {
             let (plain, decrypted, looks_like_plaintext) =
                 decrypt_str_or_original(&config.password, PASSWORD_ENC_VERSION);
+            // `decrypt_str_or_original` returns (value, decrypted_ok, should_store).
+            // If the value looks like an encrypted payload ("00" + base64 with MAC) but cannot be
+            // decrypted on this machine, it is most likely copied from another device or corrupted.
+            // In normal single-machine setups this should be extremely rare, so keep it as-is.
             if !decrypted && !looks_like_plaintext {
                 return false;
             }
@@ -1557,6 +1561,8 @@ impl Config {
         return CONFIG.read().unwrap().clone();
     }
 
+    // TODO: `Config::set()` does not invalidate trusted devices when permanent password/salt changes.
+    // This matches historical behavior, but may need revisiting in a separate PR.
     pub fn set(cfg: Config) -> bool {
         let mut cfg = cfg;
         let mut lock = CONFIG.write().unwrap();
