@@ -1312,6 +1312,19 @@ impl Config {
             return Err(anyhow!("Invalid hashed permanent password storage"));
         }
 
+        // For hashed permanent password storage, `storage` and `salt` must be consistent as a pair.
+        //
+        // In theory, it should be impossible to observe "same storage but different salt" for a
+        // correct sync source. However, accepting such an update would persist an invalid
+        // (storage, salt) pair and make permanent-password verification fail for all inputs
+        // (effective lockout) until the password is reset. The impact is high enough that a
+        // defensive check here is worthwhile even if it is rarely triggered in practice.
+        if config.password == storage && config.salt != salt {
+            return Err(anyhow!(
+                "Refusing to change salt without updating hashed permanent password storage"
+            ));
+        }
+
         if config.password == storage && config.salt == salt {
             return Ok(false);
         }
