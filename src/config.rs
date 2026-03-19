@@ -1233,6 +1233,23 @@ impl Config {
         }
 
         let mut config = CONFIG.write().unwrap();
+
+        // If the permanent password is already stored as a hashed verifier, avoid rotating salt
+        // when the plaintext stays the same. Rotating salt on "no-op" updates would unnecessarily
+        // clear trusted devices and trigger config sync churn.
+        if !password.is_empty()
+            && !config.password.is_empty()
+            && is_permanent_password_hashed_storage(&config.password)
+            && !config.salt.is_empty()
+        {
+            if let Some(stored_h1) = decode_permanent_password_h1_from_storage(&config.password) {
+                let candidate_h1 = compute_permanent_password_h1(password, &config.salt);
+                if constant_time_eq_32(&candidate_h1, &stored_h1) {
+                    return;
+                }
+            }
+        }
+
         let stored = if password.is_empty() {
             String::new()
         } else {
@@ -1250,12 +1267,9 @@ impl Config {
         config: &mut Config,
         password: &str,
     ) -> String {
-        if config.salt.is_empty() {
-            // If salt is missing, we cannot keep an existing hashed verifier valid anyway.
-            // When updating the password, generate a new salt and store it with the new verifier.
-            log::warn!("Salt is empty; generating new salt for permanent password update");
-            config.salt = Config::get_auto_password(DEFAULT_SALT_LEN);
-        }
+        // Rotate salt on permanent password updates so the verifier changes even if the user
+        // reuses a previous password. (No-op updates are handled in `set_permanent_password()`.)
+        config.salt = Config::get_auto_password(DEFAULT_SALT_LEN);
         let h1 = compute_permanent_password_h1(password, &config.salt);
         encode_permanent_password_storage_from_h1(&h1)
     }
@@ -1598,11 +1612,13 @@ impl Config {
             return;
         }
 
-        // Once the permanent password is stored as a hashed verifier, treat salt as immutable.
-        // Allow hashed verifier updates when salt is unchanged, so service->user config sync can
-        // propagate permanent password changes without plaintext.
-        if incoming.salt != current.salt {
-            log::error!("Refusing to change salt for hashed permanent password via Config::set");
+        // Once the permanent password is stored as a hashed verifier, keep salt and verifier
+        // consistent as a pair.
+        // - Refuse salt-only changes (would break verification).
+        // - Allow hashed->hashed updates with salt rotation only when the verifier also changes,
+        //   so service->user config sync can propagate password updates without plaintext.
+        if incoming.salt != current.salt && incoming.password == current.password {
+            log::error!("Refusing to change salt without updating hashed permanent password");
             incoming.password = current.password.clone();
             incoming.salt = current.salt.clone();
             return;
@@ -1616,8 +1632,10 @@ impl Config {
             return;
         }
 
-        // Allow hashed->hashed verifier updates when salt matches.
-        if !incoming.password.is_empty() && is_permanent_password_hashed_storage(&incoming.password)
+        // Allow hashed->hashed verifier updates (with optional salt rotation).
+        if !incoming.password.is_empty()
+            && is_permanent_password_hashed_storage(&incoming.password)
+            && !incoming.salt.is_empty()
         {
             return;
         }
