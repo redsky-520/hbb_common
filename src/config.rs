@@ -2696,6 +2696,7 @@ pub mod keys {
     pub const OPTION_HIDE_PROXY_SETTINGS: &str = "hide-proxy-settings";
     pub const OPTION_HIDE_REMOTE_PRINTER_SETTINGS: &str = "hide-remote-printer-settings";
     pub const OPTION_HIDE_WEBSOCKET_SETTINGS: &str = "hide-websocket-settings";
+    pub const OPTION_HIDE_STOP_SERVICE: &str = "hide-stop-service";
 
     // Connection punch-through options
     pub const OPTION_ENABLE_UDP_PUNCH: &str = "enable-udp-punch";
@@ -2903,6 +2904,7 @@ pub mod keys {
         OPTION_HIDE_PROXY_SETTINGS,
         OPTION_HIDE_REMOTE_PRINTER_SETTINGS,
         OPTION_HIDE_WEBSOCKET_SETTINGS,
+        OPTION_HIDE_STOP_SERVICE,
         OPTION_HIDE_USERNAME_ON_CARD,
         OPTION_HIDE_HELP_CARDS,
         OPTION_DEFAULT_CONNECT_PASSWORD,
