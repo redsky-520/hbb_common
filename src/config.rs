@@ -1267,9 +1267,11 @@ impl Config {
         config: &mut Config,
         password: &str,
     ) -> String {
-        // Rotate salt on permanent password updates so the verifier changes even if the user
-        // reuses a previous password. (No-op updates are handled in `set_permanent_password()`.)
-        config.salt = Config::get_auto_password(DEFAULT_SALT_LEN);
+        // Keep salt stable for user-initiated permanent password updates.
+        // Salt should only change when service->user sync updates storage and salt as a pair.
+        if config.salt.is_empty() {
+            config.salt = Config::get_auto_password(DEFAULT_SALT_LEN);
+        }
         let h1 = compute_permanent_password_h1(password, &config.salt);
         encode_permanent_password_storage_from_h1(&h1)
     }
@@ -1377,6 +1379,10 @@ impl Config {
             .unwrap()
             .get("password")
             .map_or(false, |v| !v.is_empty())
+    }
+
+    pub fn has_local_permanent_password() -> bool {
+        !CONFIG.read().unwrap().password.is_empty()
     }
 
     pub fn set_salt(salt: &str) {
