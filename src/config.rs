@@ -1403,6 +1403,10 @@ impl Config {
         let mut salt = config.salt.clone();
         if salt.is_empty() {
             if !can_update_salt(&config.password) {
+                // This shouldn't happen under normal circumstances because the salt
+                // should be automatically generated when migrating to hash storage.
+                // However, if it does occur, it's best to log the error,
+                // even though this will result in logging many duplicate error messages.
                 log::error!("Salt is empty but permanent password is hashed");
                 return String::new();
             }
