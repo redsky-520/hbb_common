@@ -1271,8 +1271,6 @@ impl Config {
     }
 
     /// Persist permanent password storage and salt from service->user config sync.
-    ///
-    /// This never accepts plaintext. `storage` must be empty or a valid hashed verifier storage.
     pub fn set_permanent_password_storage_for_sync(
         storage: &str,
         salt: &str,
@@ -1287,15 +1285,6 @@ impl Config {
             config.store();
             Self::clear_trusted_devices();
             return Ok(true);
-        }
-
-        if salt.is_empty() {
-            return Err(anyhow!(
-                "Refusing to persist hashed permanent password without salt"
-            ));
-        }
-        if decode_permanent_password_h1_from_storage(storage).is_none() {
-            return Err(anyhow!("Invalid hashed permanent password storage"));
         }
 
         if config.password == storage && config.salt == salt {
