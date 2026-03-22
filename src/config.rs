@@ -1381,10 +1381,6 @@ impl Config {
             .map_or(false, |v| !v.is_empty())
     }
 
-    pub fn has_local_permanent_password() -> bool {
-        !CONFIG.read().unwrap().password.is_empty()
-    }
-
     pub fn set_salt(salt: &str) {
         let mut config = CONFIG.write().unwrap();
         if salt == config.salt {
