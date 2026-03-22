@@ -1573,6 +1573,9 @@ impl Config {
     // This matches historical behavior, but may need revisiting in a separate PR.
     pub fn set(cfg: Config) -> bool {
         let mut lock = CONFIG.write().unwrap();
+        if *lock == cfg {
+            return false;
+        }
         *lock = cfg;
         lock.store();
         // Drop CONFIG lock before acquiring KEY_PAIR lock to avoid potential deadlock.
