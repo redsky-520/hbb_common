@@ -1356,8 +1356,7 @@ impl Config {
                 // should be automatically generated when migrating to hash storage.
                 // However, if it does occur, it's best to log the error,
                 // even though this will result in logging many duplicate error messages.
-                log::error!("Salt is empty but permanent password is hashed");
-                return String::new();
+                log::warn!("Salt is empty but permanent password is hashed");
             }
             drop(config);
             salt = Config::get_auto_password(DEFAULT_SALT_LEN);
