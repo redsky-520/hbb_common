@@ -1234,22 +1234,6 @@ impl Config {
 
         let mut config = CONFIG.write().unwrap();
 
-        // If the permanent password is already stored as a hashed verifier, avoid rotating salt
-        // when the plaintext stays the same. Rotating salt on "no-op" updates would unnecessarily
-        // clear trusted devices and trigger config sync churn.
-        if !password.is_empty()
-            && !config.password.is_empty()
-            && is_permanent_password_hashed_storage(&config.password)
-            && !config.salt.is_empty()
-        {
-            if let Some(stored_h1) = decode_permanent_password_h1_from_storage(&config.password) {
-                let candidate_h1 = compute_permanent_password_h1(password, &config.salt);
-                if constant_time_eq_32(&candidate_h1, &stored_h1) {
-                    return;
-                }
-            }
-        }
-
         let stored = if password.is_empty() {
             String::new()
         } else {
@@ -1312,19 +1296,6 @@ impl Config {
         }
         if decode_permanent_password_h1_from_storage(storage).is_none() {
             return Err(anyhow!("Invalid hashed permanent password storage"));
-        }
-
-        // For hashed permanent password storage, `storage` and `salt` must be consistent as a pair.
-        //
-        // In theory, it should be impossible to observe "same storage but different salt" for a
-        // correct sync source. However, accepting such an update would persist an invalid
-        // (storage, salt) pair and make permanent-password verification fail for all inputs
-        // (effective lockout) until the password is reset. The impact is high enough that a
-        // defensive check here is worthwhile even if it is rarely triggered in practice.
-        if config.password == storage && config.salt != salt {
-            return Err(anyhow!(
-                "Refusing to change salt without updating hashed permanent password storage"
-            ));
         }
 
         if config.password == storage && config.salt == salt {
@@ -1601,12 +1572,7 @@ impl Config {
     // TODO: `Config::set()` does not invalidate trusted devices when permanent password/salt changes.
     // This matches historical behavior, but may need revisiting in a separate PR.
     pub fn set(cfg: Config) -> bool {
-        let mut cfg = cfg;
         let mut lock = CONFIG.write().unwrap();
-        Self::normalize_incoming_permanent_password_update(&lock, &mut cfg);
-        if *lock == cfg {
-            return false;
-        }
         *lock = cfg;
         lock.store();
         // Drop CONFIG lock before acquiring KEY_PAIR lock to avoid potential deadlock.
@@ -1616,60 +1582,6 @@ impl Config {
         #[cfg(target_os = "macos")]
         Self::invalidate_key_pair_cache_if_changed(&new_key_pair);
         true
-    }
-
-    fn normalize_incoming_permanent_password_update(current: &Config, incoming: &mut Config) {
-        if !incoming.password.is_empty()
-            && is_permanent_password_hashed_storage(&incoming.password)
-            && incoming.salt.is_empty()
-        {
-            log::error!("Refusing to persist hashed permanent password without salt");
-            incoming.password = current.password.clone();
-            incoming.salt = current.salt.clone();
-            return;
-        }
-
-        let current_is_hashed =
-            !current.password.is_empty() && is_permanent_password_hashed_storage(&current.password);
-        if !current_is_hashed {
-            return;
-        }
-
-        // Once the permanent password is stored as a hashed verifier, keep salt and verifier
-        // consistent as a pair.
-        // - Refuse salt-only changes (would break verification).
-        // - Allow hashed->hashed updates with salt rotation only when the verifier also changes,
-        //   so service->user config sync can propagate password updates without plaintext.
-        if incoming.salt != current.salt && incoming.password == current.password {
-            log::error!("Refusing to change salt without updating hashed permanent password");
-            incoming.password = current.password.clone();
-            incoming.salt = current.salt.clone();
-            return;
-        }
-
-        // Keep the previous hard rule: don't allow clearing via config sync.
-        if incoming.password.is_empty() && !current.password.is_empty() {
-            log::error!("Refusing to clear hashed permanent password via Config::set");
-            incoming.password = current.password.clone();
-            incoming.salt = current.salt.clone();
-            return;
-        }
-
-        // Allow hashed->hashed verifier updates (with optional salt rotation).
-        if !incoming.password.is_empty()
-            && is_permanent_password_hashed_storage(&incoming.password)
-            && !incoming.salt.is_empty()
-        {
-            return;
-        }
-
-        // Refuse any downgrade or plaintext overwrite attempts.
-        if incoming.password != current.password {
-            log::error!("Refusing to overwrite hashed permanent password via Config::set");
-            incoming.password = current.password.clone();
-            incoming.salt = current.salt.clone();
-            return;
-        }
     }
 
     /// Invalidate KEY_PAIR cache if it differs from the new key_pair.
@@ -3312,72 +3224,6 @@ mod tests {
         let stored_h1 = decode_permanent_password_h1_from_storage(&cfg.password).unwrap();
         let expected_h1 = compute_permanent_password_h1("00secret", &cfg.salt);
         assert_eq!(stored_h1, expected_h1);
-    }
-
-    #[test]
-    fn test_config_set_refuses_plain_password_when_current_is_hashed() {
-        let mut current = Config::default();
-        current.salt = "salt12".to_owned();
-        current.password = encode_permanent_password_storage_from_h1(
-            &compute_permanent_password_h1("old", &current.salt),
-        );
-
-        let mut incoming = current.clone();
-        incoming.password = "plaintext".to_owned();
-
-        Config::normalize_incoming_permanent_password_update(&current, &mut incoming);
-        assert_eq!(incoming.password, current.password);
-        assert_eq!(incoming.salt, current.salt);
-    }
-
-    #[test]
-    fn test_config_set_refuses_clear_password_when_current_is_hashed() {
-        let mut current = Config::default();
-        current.salt = "salt12".to_owned();
-        current.password = encode_permanent_password_storage_from_h1(
-            &compute_permanent_password_h1("old", &current.salt),
-        );
-
-        let mut incoming = current.clone();
-        incoming.password = "".to_owned();
-
-        Config::normalize_incoming_permanent_password_update(&current, &mut incoming);
-        assert_eq!(incoming.password, current.password);
-        assert_eq!(incoming.salt, current.salt);
-    }
-
-    #[test]
-    fn test_config_set_allows_replace_password_when_current_is_hashed_and_salt_unchanged() {
-        let mut current = Config::default();
-        current.salt = "salt12".to_owned();
-        current.password = encode_permanent_password_storage_from_h1(
-            &compute_permanent_password_h1("old", &current.salt),
-        );
-
-        let mut incoming = current.clone();
-        incoming.password = encode_permanent_password_storage_from_h1(
-            &compute_permanent_password_h1("new", &current.salt),
-        );
-
-        Config::normalize_incoming_permanent_password_update(&current, &mut incoming);
-        assert_eq!(incoming.salt, current.salt);
-        assert_ne!(incoming.password, current.password);
-    }
-
-    #[test]
-    fn test_config_set_refuses_salt_change_when_password_unchanged_and_hashed() {
-        let mut current = Config::default();
-        current.salt = "salt12".to_owned();
-        current.password = encode_permanent_password_storage_from_h1(
-            &compute_permanent_password_h1("old", &current.salt),
-        );
-
-        let mut incoming = current.clone();
-        incoming.salt = "DIFF00".to_owned();
-
-        Config::normalize_incoming_permanent_password_update(&current, &mut incoming);
-        assert_eq!(incoming.password, current.password);
-        assert_eq!(incoming.salt, current.salt);
     }
 
     #[test]
