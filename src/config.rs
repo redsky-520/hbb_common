@@ -1276,17 +1276,6 @@ impl Config {
         salt: &str,
     ) -> crate::ResultType<bool> {
         let mut config = CONFIG.write().unwrap();
-
-        if storage.is_empty() {
-            if config.password.is_empty() {
-                return Ok(false);
-            }
-            config.password = String::new();
-            config.store();
-            Self::clear_trusted_devices();
-            return Ok(true);
-        }
-
         if config.password == storage && config.salt == salt {
             return Ok(false);
         }
