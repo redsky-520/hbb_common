@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use bytes::Bytes;
 use rand::Rng;
 use regex::Regex;
