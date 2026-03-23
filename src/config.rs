@@ -1339,6 +1339,9 @@ impl Config {
         !CONFIG.read().unwrap().password.is_empty()
     }
 
+    // This shouldn't happen under normal circumstances because the salt
+    // should be automatically generated when migrating to hash storage.
+    // Actually, it is better to avoid calling set_salt at all.
     pub fn set_salt(salt: &str) {
         let mut config = CONFIG.write().unwrap();
         if salt == config.salt {
@@ -1346,15 +1349,9 @@ impl Config {
         }
         if !password_is_empty_or_not_hashed(&config.password) {
             if config.salt.is_empty() {
-                // This shouldn't happen under normal circumstances because the salt
-                // should be automatically generated when migrating to hash storage.
-                // However, if it does occur, it's best to log the error,
-                // even though this will result in logging many duplicate error messages.
-                log::warn!("Salt is empty but permanent password is hashed");
+                log::warn!("Salt is empty but permanent password is hashed and salt is empty");
             } else {
-                log::error!(
-                    "Refusing to set salt because permanent password is hashed and salt is empty"
-                );
+                log::error!("Refusing to set salt because permanent password is hashed");
                 return;
             }
         }
