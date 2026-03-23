@@ -670,6 +670,10 @@ impl Config {
             if config.salt.is_empty() {
                 config.salt = Config::get_auto_password(DEFAULT_SALT_LEN);
             }
+            if is_permanent_password_hashed_storage(&plain) {
+                config.password = plain;
+                return true;
+            }
             let h1 = compute_permanent_password_h1(&plain, &config.salt);
             config.password = encode_permanent_password_storage_from_h1(&h1);
             return true;
