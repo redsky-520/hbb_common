@@ -1346,16 +1346,16 @@ impl Config {
         }
         if !password_is_empty_or_not_hashed(&config.password) {
             if config.salt.is_empty() {
-                log::error!(
-                    "Refusing to set salt because permanent password is hashed and salt is empty"
-                );
-                return;
-            } else {
                 // This shouldn't happen under normal circumstances because the salt
                 // should be automatically generated when migrating to hash storage.
                 // However, if it does occur, it's best to log the error,
                 // even though this will result in logging many duplicate error messages.
                 log::warn!("Salt is empty but permanent password is hashed");
+            } else {
+                log::error!(
+                    "Refusing to set salt because permanent password is hashed and salt is empty"
+                );
+                return;
             }
         }
         config.salt = salt.into();
