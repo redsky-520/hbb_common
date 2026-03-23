@@ -85,7 +85,8 @@ pub fn decode_permanent_password_h1_from_storage(
     Some(h1)
 }
 
-fn can_update_salt(permanent_password_storage: &str) -> bool {
+// If password is empty or not hashed storage, it's safe to update salt.
+fn password_is_empty_or_not_hashed(permanent_password_storage: &str) -> bool {
     permanent_password_storage.is_empty()
         || !is_permanent_password_hashed_storage(permanent_password_storage)
 }
@@ -1343,9 +1344,19 @@ impl Config {
         if salt == config.salt {
             return;
         }
-        if !can_update_salt(&config.password) {
-            log::error!("Refusing to update salt because permanent password is hashed");
-            return;
+        if !password_is_empty_or_not_hashed(&config.password) {
+            if config.salt.is_empty() {
+                log::error!(
+                    "Refusing to set salt because permanent password is hashed and salt is empty"
+                );
+                return;
+            } else {
+                // This shouldn't happen under normal circumstances because the salt
+                // should be automatically generated when migrating to hash storage.
+                // However, if it does occur, it's best to log the error,
+                // even though this will result in logging many duplicate error messages.
+                log::warn!("Salt is empty but permanent password is hashed");
+            }
         }
         config.salt = salt.into();
         config.store();
@@ -1355,13 +1366,6 @@ impl Config {
         let config = CONFIG.read().unwrap();
         let mut salt = config.salt.clone();
         if salt.is_empty() {
-            if !can_update_salt(&config.password) {
-                // This shouldn't happen under normal circumstances because the salt
-                // should be automatically generated when migrating to hash storage.
-                // However, if it does occur, it's best to log the error,
-                // even though this will result in logging many duplicate error messages.
-                log::warn!("Salt is empty but permanent password is hashed");
-            }
             drop(config);
             salt = Config::get_auto_password(DEFAULT_SALT_LEN);
             Config::set_salt(&salt);
