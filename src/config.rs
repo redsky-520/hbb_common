@@ -2709,6 +2709,7 @@ pub mod keys {
     pub const OPTION_ALLOW_LOGON_SCREEN_PASSWORD: &str = "allow-logon-screen-password";
     pub const OPTION_ONE_WAY_FILE_TRANSFER: &str = "one-way-file-transfer";
     pub const OPTION_ALLOW_HTTPS_21114: &str = "allow-https-21114";
+    pub const OPTION_USE_RAW_TCP_FOR_API: &str = "use-raw-tcp-for-api";
     pub const OPTION_ALLOW_HOSTNAME_AS_ID: &str = "allow-hostname-as-id";
     pub const OPTION_HIDE_POWERED_BY_ME: &str = "hide-powered-by-me";
     pub const OPTION_MAIN_WINDOW_ALWAYS_ON_TOP: &str = "main-window-always-on-top";
@@ -2921,6 +2922,7 @@ pub mod keys {
         OPTION_DISABLE_CHANGE_PERMANENT_PASSWORD,
         OPTION_DISABLE_CHANGE_ID,
         OPTION_DISABLE_UNLOCK_PIN,
+        OPTION_USE_RAW_TCP_FOR_API,
     ];
 }
 
