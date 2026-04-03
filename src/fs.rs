@@ -626,6 +626,11 @@ impl TransferJob {
     #[inline]
     pub fn set_files(&mut self, files: Vec<FileEntry>) -> ResultType<()> {
         validate_transfer_file_names(&files)?;
+        if let DataSource::FilePath(base) = &self.data_source {
+            for file in &files {
+                validate_no_symlink_components(base, &file.name)?;
+            }
+        }
         self.files = files;
         Ok(())
     }
@@ -1703,5 +1708,50 @@ mod tests {
             .set_files(vec![new_file_entry("C:\\Windows\\Temp\\payload.txt")])
             .expect_err("drive-letter absolute path must be rejected");
         assert_err_contains(err, "absolute path");
+    }
+
+    #[test]
+    fn set_files_rejects_symlink_path_component() {
+        let tmp_root = unique_temp_dir("rustdesk_set_files_symlink");
+        let downloads = tmp_root.join("downloads");
+        let outside = tmp_root.join("outside");
+        std::fs::create_dir_all(&downloads).expect("create downloads dir");
+        std::fs::create_dir_all(&outside).expect("create outside dir");
+
+        let symlink_path = downloads.join("link");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            if symlink(&outside, &symlink_path).is_err() {
+                let _ = std::fs::remove_dir_all(&tmp_root);
+                return;
+            }
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::symlink_dir;
+            if symlink_dir(&outside, &symlink_path).is_err() {
+                let _ = std::fs::remove_dir_all(&tmp_root);
+                return;
+            }
+        }
+
+        let mut job = TransferJob::new_write(
+            107,
+            JobType::Generic,
+            "/fake/remote".to_string(),
+            DataSource::FilePath(downloads),
+            0,
+            false,
+            true,
+            Vec::new(),
+            false,
+        );
+        let err = job
+            .set_files(vec![new_file_entry("link/escape.txt")])
+            .expect_err("symlink component must be rejected");
+        assert_err_contains(err, "symlink");
+
+        let _ = std::fs::remove_dir_all(&tmp_root);
     }
 }
