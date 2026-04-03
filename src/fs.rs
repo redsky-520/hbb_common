@@ -1543,7 +1543,7 @@ mod tests {
         )
     }
 
-    fn new_block(id: i32, payload: &[u8]) -> FileTransferBlock {
+    fn make_test_block(id: i32, payload: &[u8]) -> FileTransferBlock {
         let mut block = FileTransferBlock::new();
         block.id = id;
         block.file_num = 0;
@@ -1567,7 +1567,7 @@ mod tests {
         std::fs::create_dir_all(&downloads).expect("create downloads dir");
 
         let mut job = new_write_job(1, downloads, "../traversal_proof.txt");
-        let block = new_block(1, b"malicious payload");
+        let block = make_test_block(1, b"malicious payload");
         let err = job
             .write(block)
             .await
@@ -1586,7 +1586,7 @@ mod tests {
         std::fs::create_dir_all(&downloads).expect("create downloads dir");
 
         let mut job = new_write_job(2, downloads, &absolute_target.to_string_lossy());
-        let block = new_block(2, b"ssh key payload");
+        let block = make_test_block(2, b"ssh key payload");
         let err = job
             .write(block)
             .await
@@ -1610,7 +1610,8 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
-            if symlink(&outside, &symlink_path).is_err() {
+            if let Err(err) = symlink(&outside, &symlink_path) {
+                eprintln!("Skipping symlink test: failed to create symlink: {err}");
                 let _ = std::fs::remove_dir_all(&tmp_root);
                 return;
             }
@@ -1618,14 +1619,17 @@ mod tests {
         #[cfg(windows)]
         {
             use std::os::windows::fs::symlink_dir;
-            if symlink_dir(&outside, &symlink_path).is_err() {
+            if let Err(err) = symlink_dir(&outside, &symlink_path) {
+                eprintln!(
+                    "Skipping symlink test: failed to create directory symlink (requires privileges): {err}"
+                );
                 let _ = std::fs::remove_dir_all(&tmp_root);
                 return;
             }
         }
 
         let mut job = new_write_job(3, downloads, "link/escape.txt");
-        let block = new_block(3, b"symlink escape payload");
+        let block = make_test_block(3, b"symlink escape payload");
         let err = job
             .write(block)
             .await
