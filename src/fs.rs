@@ -464,7 +464,7 @@ pub fn validate_file_name_no_traversal(name: &str) -> ResultType<()> {
     let has_traversal = name
         .split(|c: char| c == '/' || (cfg!(windows) && c == '\\'))
         .filter(|s| !s.is_empty())
-        .any(|component| component == "..");
+        .any(is_parent_component);
     if has_traversal {
         bail!("path traversal detected in file name");
     }
@@ -487,6 +487,20 @@ pub fn validate_file_name_no_traversal(name: &str) -> ResultType<()> {
     Ok(())
 }
 
+#[inline]
+fn is_parent_component(component: &str) -> bool {
+    #[cfg(windows)]
+    {
+        // Win32 trims trailing spaces/dots in path segments for many file APIs.
+        // Reject variants like ".. " / ".. ." to avoid bypassing traversal checks.
+        component.trim_end_matches(|c| c == ' ' || c == '.') == ".."
+    }
+    #[cfg(not(windows))]
+    {
+        component == ".."
+    }
+}
+
 fn validate_transfer_file_names(files: &[FileEntry]) -> ResultType<()> {
     // Single-file transfer may use an empty relative name, because
     // the destination file path is carried by transfer metadata.
@@ -498,6 +512,17 @@ fn validate_transfer_file_names(files: &[FileEntry]) -> ResultType<()> {
             bail!("empty file name in multi-file transfer");
         }
         validate_file_name_no_traversal(&file.name)?;
+    }
+    Ok(())
+}
+
+#[inline]
+fn validate_fs_path_argument(path: &str, arg_name: &str) -> ResultType<()> {
+    if path.is_empty() {
+        bail!("{arg_name} cannot be empty");
+    }
+    if path.bytes().any(|b| b == 0) {
+        bail!("{arg_name} contains null bytes");
     }
     Ok(())
 }
@@ -766,6 +791,10 @@ impl TransferJob {
                         (p.to_string_lossy().to_string(), None)
                     } else {
                         let path = join_validated_path(p, &entry.name)?;
+                        // NOTE: We intentionally keep path-based validation + regular file open here.
+                        // This still has a known TOCTOU window for symlink races, but avoids a large
+                        // cross-platform rewrite for now.
+                        // Revisit with descriptor/handle-based no-follow open in future hardening.
                         if let Some(pp) = path.parent() {
                             std::fs::create_dir_all(pp).ok();
                         }
@@ -1098,6 +1127,8 @@ impl TransferJob {
 
             let mut f = if Path::new(&download_path).exists() && Path::new(&digest_path).exists() {
                 // If both download and digest files exist, seek (writer) to the offset
+                // NOTE: same as write path: best-effort symlink validation happened earlier,
+                // but this reopen remains TOCTOU-prone by design for now.
                 match OpenOptions::new()
                     .create(true)
                     .write(true)
@@ -1382,18 +1413,25 @@ pub fn remove_all_empty_dir(path: &Path) -> ResultType<()> {
 
 #[inline]
 pub fn remove_file(file: &str) -> ResultType<()> {
+    validate_fs_path_argument(file, "file path")?;
     std::fs::remove_file(get_path(file))?;
     Ok(())
 }
 
 #[inline]
 pub fn create_dir(dir: &str) -> ResultType<()> {
+    validate_fs_path_argument(dir, "directory path")?;
     std::fs::create_dir_all(get_path(dir))?;
     Ok(())
 }
 
 #[inline]
 pub fn rename_file(path: &str, new_name: &str) -> ResultType<()> {
+    validate_fs_path_argument(path, "path")?;
+    if new_name.is_empty() {
+        bail!("new file name cannot be empty");
+    }
+    validate_file_name_no_traversal(new_name)?;
     let path = std::path::Path::new(&path);
     if path.exists() {
         let dir = path
@@ -1604,6 +1642,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "requires symlink privilege to create test symlink")]
     fn path_traversal_e2e_write_rejects_symlink_escape() {
         let tmp_root = TestTempDir::new("rustdesk_e2e_symlink");
         let downloads = tmp_root.join("downloads");
@@ -1616,20 +1655,12 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
-            if let Err(err) = symlink(&outside, &symlink_path) {
-                eprintln!("Skipping symlink test: failed to create symlink: {err}");
-                return;
-            }
+            symlink(&outside, &symlink_path).expect("create symlink for test");
         }
         #[cfg(windows)]
         {
             use std::os::windows::fs::symlink_dir;
-            if let Err(err) = symlink_dir(&outside, &symlink_path) {
-                eprintln!(
-                    "Skipping symlink test: failed to create directory symlink (requires privileges): {err}"
-                );
-                return;
-            }
+            symlink_dir(&outside, &symlink_path).expect("create directory symlink for test");
         }
 
         let err = new_write_job(3, downloads, "link/escape.txt")
@@ -1703,7 +1734,34 @@ mod tests {
         assert_err_contains(err, "absolute path");
     }
 
+    #[cfg(windows)]
     #[test]
+    fn set_files_rejects_windows_parent_with_trailing_space_or_dot() {
+        let mut job = new_validation_job(1061);
+
+        let err_space = job
+            .set_files(vec![new_file_entry(".. /escape.txt")])
+            .expect_err("parent component with trailing space must be rejected");
+        assert_err_contains(err_space, "path traversal");
+
+        let err_dot = job
+            .set_files(vec![new_file_entry(".. .\\escape.txt")])
+            .expect_err("parent component with trailing dot must be rejected");
+        assert_err_contains(err_dot, "path traversal");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn is_parent_component_windows_trim_end_matches_behavior() {
+        assert!(is_parent_component(".."));
+        assert!(is_parent_component(".. "));
+        assert!(is_parent_component(".. ."));
+        assert!(!is_parent_component("..."));
+        assert!(!is_parent_component("."));
+    }
+
+    #[test]
+    #[cfg_attr(windows, ignore = "requires symlink privilege to create test symlink")]
     fn set_files_rejects_symlink_path_component() {
         let tmp_root = TestTempDir::new("rustdesk_set_files_symlink");
         let downloads = tmp_root.join("downloads");
@@ -1715,16 +1773,12 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
-            if symlink(&outside, &symlink_path).is_err() {
-                return;
-            }
+            symlink(&outside, &symlink_path).expect("create symlink for test");
         }
         #[cfg(windows)]
         {
             use std::os::windows::fs::symlink_dir;
-            if symlink_dir(&outside, &symlink_path).is_err() {
-                return;
-            }
+            symlink_dir(&outside, &symlink_path).expect("create directory symlink for test");
         }
 
         let mut job = TransferJob::new_write(
