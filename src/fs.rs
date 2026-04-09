@@ -513,9 +513,23 @@ fn validate_no_symlink_components(base: &PathBuf, name: &str) -> ResultType<()> 
                 current.push(seg);
                 // Best-effort guard: path-based checks are inherently TOCTOU-prone
                 // if local filesystem state changes between validation and write.
-                if let Ok(meta) = std::fs::symlink_metadata(&current) {
-                    if meta.file_type().is_symlink() {
-                        bail!("symlink path component is not allowed");
+                match std::fs::symlink_metadata(&current) {
+                    Ok(meta) => {
+                        // This is inherent to filesystem-based checks and acknowledged as a limitation.
+                        // For true protection, you'd need openat(2) / O_NOFOLLOW at write time.
+                        if meta.file_type().is_symlink() {
+                            bail!("symlink path component is not allowed");
+                        }
+                    }
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                        // Component does not exist yet, continue best-effort validation.
+                    }
+                    Err(err) => {
+                        bail!(
+                            "failed to validate path component '{}': {}",
+                            current.display(),
+                            err
+                        );
                     }
                 }
             }
@@ -1491,6 +1505,28 @@ pub fn serialize_transfer_job(job: &TransferJob, done: bool, cancel: bool, error
 mod tests {
     use super::*;
 
+    struct TestTempDir {
+        path: PathBuf,
+    }
+
+    impl TestTempDir {
+        fn new(prefix: &str) -> Self {
+            Self {
+                path: unique_temp_dir(prefix),
+            }
+        }
+
+        fn join(&self, path: &str) -> PathBuf {
+            self.path.join(path)
+        }
+    }
+
+    impl Drop for TestTempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
     fn unique_temp_dir(prefix: &str) -> PathBuf {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -1544,7 +1580,7 @@ mod tests {
 
     #[test]
     fn path_traversal_e2e_write_rejects_relative_escape() {
-        let tmp_root = unique_temp_dir("rustdesk_e2e_relative");
+        let tmp_root = TestTempDir::new("rustdesk_e2e_relative");
         let downloads = tmp_root.join("downloads");
         std::fs::create_dir_all(&downloads).expect("create downloads dir");
 
@@ -1552,13 +1588,11 @@ mod tests {
             .expect_err("relative path traversal must be rejected");
         assert_err_contains(err, "path traversal");
         assert!(!tmp_root.join("traversal_proof.txt").exists());
-
-        let _ = std::fs::remove_dir_all(&tmp_root);
     }
 
     #[test]
     fn path_traversal_e2e_write_rejects_absolute_path() {
-        let tmp_root = unique_temp_dir("rustdesk_e2e_absolute");
+        let tmp_root = TestTempDir::new("rustdesk_e2e_absolute");
         let downloads = tmp_root.join("downloads");
         let absolute_target = tmp_root.join("fake_ssh").join("authorized_keys");
         std::fs::create_dir_all(&downloads).expect("create downloads dir");
@@ -1567,13 +1601,11 @@ mod tests {
             .expect_err("absolute path must be rejected");
         assert_err_contains(err, "absolute path");
         assert!(!absolute_target.exists());
-
-        let _ = std::fs::remove_dir_all(&tmp_root);
     }
 
     #[test]
     fn path_traversal_e2e_write_rejects_symlink_escape() {
-        let tmp_root = unique_temp_dir("rustdesk_e2e_symlink");
+        let tmp_root = TestTempDir::new("rustdesk_e2e_symlink");
         let downloads = tmp_root.join("downloads");
         let outside = tmp_root.join("outside");
         let escaped_target = outside.join("escape.txt");
@@ -1586,7 +1618,6 @@ mod tests {
             use std::os::unix::fs::symlink;
             if let Err(err) = symlink(&outside, &symlink_path) {
                 eprintln!("Skipping symlink test: failed to create symlink: {err}");
-                let _ = std::fs::remove_dir_all(&tmp_root);
                 return;
             }
         }
@@ -1597,7 +1628,6 @@ mod tests {
                 eprintln!(
                     "Skipping symlink test: failed to create directory symlink (requires privileges): {err}"
                 );
-                let _ = std::fs::remove_dir_all(&tmp_root);
                 return;
             }
         }
@@ -1606,8 +1636,6 @@ mod tests {
             .expect_err("symlink traversal must be rejected");
         assert_err_contains(err, "symlink");
         assert!(!escaped_target.exists());
-
-        let _ = std::fs::remove_dir_all(&tmp_root);
     }
 
     #[test]
@@ -1677,7 +1705,7 @@ mod tests {
 
     #[test]
     fn set_files_rejects_symlink_path_component() {
-        let tmp_root = unique_temp_dir("rustdesk_set_files_symlink");
+        let tmp_root = TestTempDir::new("rustdesk_set_files_symlink");
         let downloads = tmp_root.join("downloads");
         let outside = tmp_root.join("outside");
         std::fs::create_dir_all(&downloads).expect("create downloads dir");
@@ -1688,7 +1716,6 @@ mod tests {
         {
             use std::os::unix::fs::symlink;
             if symlink(&outside, &symlink_path).is_err() {
-                let _ = std::fs::remove_dir_all(&tmp_root);
                 return;
             }
         }
@@ -1696,7 +1723,6 @@ mod tests {
         {
             use std::os::windows::fs::symlink_dir;
             if symlink_dir(&outside, &symlink_path).is_err() {
-                let _ = std::fs::remove_dir_all(&tmp_root);
                 return;
             }
         }
@@ -1715,7 +1741,5 @@ mod tests {
             .set_files(vec![new_file_entry("link/escape.txt")])
             .expect_err("symlink component must be rejected");
         assert_err_contains(err, "symlink");
-
-        let _ = std::fs::remove_dir_all(&tmp_root);
     }
 }
