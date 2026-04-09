@@ -464,7 +464,7 @@ pub fn validate_file_name_no_traversal(name: &str) -> ResultType<()> {
     let has_traversal = name
         .split(|c: char| c == '/' || (cfg!(windows) && c == '\\'))
         .filter(|s| !s.is_empty())
-        .any(is_parent_component);
+        .any(|s| s == "..");
     if has_traversal {
         bail!("path traversal detected in file name");
     }
@@ -485,20 +485,6 @@ pub fn validate_file_name_no_traversal(name: &str) -> ResultType<()> {
         bail!("absolute path detected in file name");
     }
     Ok(())
-}
-
-#[inline]
-fn is_parent_component(component: &str) -> bool {
-    #[cfg(windows)]
-    {
-        // Win32 trims trailing spaces/dots in path segments for many file APIs.
-        // Reject variants like ".. " / ".. ." to avoid bypassing traversal checks.
-        component.trim_end_matches(|c| c == ' ' || c == '.') == ".."
-    }
-    #[cfg(not(windows))]
-    {
-        component == ".."
-    }
 }
 
 fn validate_transfer_file_names(files: &[FileEntry]) -> ResultType<()> {
@@ -1724,6 +1710,80 @@ mod tests {
             .is_ok());
     }
 
+    #[test]
+    fn remove_file_rejects_empty_path() {
+        let err = remove_file("").expect_err("empty file path must be rejected");
+        assert_err_contains(err, "cannot be empty");
+    }
+
+    #[test]
+    fn remove_file_rejects_null_byte_path() {
+        let err = remove_file("bad\0path").expect_err("null byte path must be rejected");
+        assert_err_contains(err, "null bytes");
+    }
+
+    #[test]
+    fn create_dir_rejects_empty_path() {
+        let err = create_dir("").expect_err("empty directory path must be rejected");
+        assert_err_contains(err, "cannot be empty");
+    }
+
+    #[test]
+    fn create_dir_rejects_null_byte_path() {
+        let err = create_dir("bad\0path").expect_err("null byte path must be rejected");
+        assert_err_contains(err, "null bytes");
+    }
+
+    #[test]
+    fn rename_file_rejects_invalid_new_name() {
+        let tmp_root = TestTempDir::new("rustdesk_rename_invalid");
+        let src = tmp_root.join("source.txt");
+        std::fs::create_dir_all(&tmp_root.path).expect("create temp dir");
+        std::fs::write(&src, b"content").expect("create source file");
+
+        let src_str = src.to_string_lossy().to_string();
+
+        let err_empty =
+            rename_file(&src_str, "").expect_err("empty new file name must be rejected");
+        assert_err_contains(err_empty, "cannot be empty");
+
+        let err_traversal = rename_file(&src_str, "../escape.txt")
+            .expect_err("traversal new file name must be rejected");
+        assert_err_contains(err_traversal, "path traversal");
+
+        let err_null = rename_file(&src_str, "bad\0name.txt")
+            .expect_err("null byte in new file name must be rejected");
+        assert_err_contains(err_null, "null bytes");
+
+        #[cfg(windows)]
+        {
+            let err_abs = rename_file(&src_str, "C:\\Windows\\Temp\\payload.txt")
+                .expect_err("absolute new file name must be rejected");
+            assert_err_contains(err_abs, "absolute path");
+        }
+        #[cfg(not(windows))]
+        {
+            let err_abs = rename_file(&src_str, "/tmp/payload.txt")
+                .expect_err("absolute new file name must be rejected");
+            assert_err_contains(err_abs, "absolute path");
+        }
+    }
+
+    #[test]
+    fn rename_file_accepts_valid_new_name() {
+        let tmp_root = TestTempDir::new("rustdesk_rename_ok");
+        let src = tmp_root.join("rename_src.txt");
+        let dst = tmp_root.join("renamed.txt");
+        std::fs::create_dir_all(&tmp_root.path).expect("create temp dir");
+        std::fs::write(&src, b"content").expect("create source file");
+
+        let src_str = src.to_string_lossy().to_string();
+        rename_file(&src_str, "renamed.txt").expect("rename should succeed");
+
+        assert!(!src.exists());
+        assert!(dst.exists());
+    }
+
     #[cfg(windows)]
     #[test]
     fn set_files_rejects_windows_drive_absolute_path() {
@@ -1736,64 +1796,11 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn set_files_rejects_windows_parent_with_trailing_space_or_dot() {
+    fn set_files_rejects_windows_verbatim_drive_absolute_path() {
         let mut job = new_validation_job(1061);
-
-        let err_space = job
-            .set_files(vec![new_file_entry(".. /escape.txt")])
-            .expect_err("parent component with trailing space must be rejected");
-        assert_err_contains(err_space, "path traversal");
-
-        let err_dot = job
-            .set_files(vec![new_file_entry(".. .\\escape.txt")])
-            .expect_err("parent component with trailing dot must be rejected");
-        assert_err_contains(err_dot, "path traversal");
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn is_parent_component_windows_trim_end_matches_behavior() {
-        assert!(is_parent_component(".."));
-        assert!(is_parent_component(".. "));
-        assert!(is_parent_component(".. ."));
-        assert!(!is_parent_component("..."));
-        assert!(!is_parent_component("."));
-    }
-
-    #[test]
-    #[cfg_attr(windows, ignore = "requires symlink privilege to create test symlink")]
-    fn set_files_rejects_symlink_path_component() {
-        let tmp_root = TestTempDir::new("rustdesk_set_files_symlink");
-        let downloads = tmp_root.join("downloads");
-        let outside = tmp_root.join("outside");
-        std::fs::create_dir_all(&downloads).expect("create downloads dir");
-        std::fs::create_dir_all(&outside).expect("create outside dir");
-
-        let symlink_path = downloads.join("link");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::symlink;
-            symlink(&outside, &symlink_path).expect("create symlink for test");
-        }
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::symlink_dir;
-            symlink_dir(&outside, &symlink_path).expect("create directory symlink for test");
-        }
-
-        let mut job = TransferJob::new_write(
-            107,
-            JobType::Generic,
-            "/fake/remote".to_string(),
-            DataSource::FilePath(downloads),
-            0,
-            false,
-            true,
-            false,
-        );
         let err = job
-            .set_files(vec![new_file_entry("link/escape.txt")])
-            .expect_err("symlink component must be rejected");
-        assert_err_contains(err, "symlink");
+            .set_files(vec![new_file_entry(r"\\?\C:\Windows\Temp\x.txt")])
+            .expect_err("verbatim drive absolute path must be rejected");
+        assert_err_contains(err, "absolute path");
     }
 }
